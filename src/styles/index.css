@@ -396,9 +396,10 @@ body {
   width: 320px; background: var(--surface);
   border-left: 1px solid var(--border);
   display: flex; flex-direction: column;
-  z-index: 300; transform: translateX(100%);
+  z-index: 400; transform: translateX(100%);
   transition: transform 0.25s ease;
   box-shadow: -4px 0 20px rgba(0,0,0,0.4);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 .chat-panel.open { transform: translateX(0); }
 .chat-header {
@@ -419,7 +420,13 @@ body {
 .chat-msg.own .chat-bubble { background: var(--dhl-yellow); color: #1a1a1a; border-radius: 12px 12px 2px 12px; }
 .chat-msg.other .chat-bubble { background: var(--surface3); color: var(--text); border-radius: 12px 12px 12px 2px; }
 .chat-meta { font-size: 10px; color: var(--text-muted); }
-.chat-input-row { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.chat-input-row {
+  padding: 12px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px;
+  background: var(--surface);
+  position: sticky; bottom: 0;
+  flex-shrink: 0;
+}
 .chat-input {
   flex: 1; background: var(--surface3); border: 1px solid var(--border);
   border-radius: var(--radius-sm); color: var(--text);

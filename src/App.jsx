@@ -73,11 +73,13 @@ export default function App() {
 
       {session && profile && (
         <>
-          <PresenceBar
-            currentUser={session.user}
-            profile={profile}
-            onCallUser={handleCallUser}
-          />
+          {!chatOpen && (
+            <PresenceBar
+              currentUser={session.user}
+              profile={profile}
+              onCallUser={handleCallUser}
+            />
+          )}
 
           <ChatPanel
             open={chatOpen}
