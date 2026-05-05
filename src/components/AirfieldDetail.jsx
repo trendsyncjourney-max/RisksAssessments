@@ -114,6 +114,10 @@ export default function AirfieldDetail({ airfield, profile, currentUser, onBack,
       date_request: genData.date_request, date_flight_support: genData.date_flight_support,
       date_preparation: genData.date_preparation, date_eng_safety: genData.date_eng_safety,
       date_final_approval: genData.date_final_approval, date_fop_complete: genData.date_fop_complete,
+      lvops_available: genData.lvops_available, lvops_details: genData.lvops_details,
+      airport_of_entry: genData.airport_of_entry, aip_available: genData.aip_available,
+      gigsky_coverage: genData.gigsky_coverage, ops_data_readiness: genData.ops_data_readiness,
+      catb_b757: genData.catb_b757, catb_b767: genData.catb_b767, catb_b777: genData.catb_b777,
     }).eq('id', airfield.id)
 
     await supabase.from('runways').delete().eq('airfield_id', airfield.id)

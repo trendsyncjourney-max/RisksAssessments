@@ -1,4 +1,11 @@
-import { APPROVAL_STAGES } from '../data/initialData.js'
+const APPROVAL_STAGES = [
+  { key: 'date_request',         label: 'Request' },
+  { key: 'date_flight_support',  label: 'Flight Support' },
+  { key: 'date_preparation',     label: 'Preparation' },
+  { key: 'date_eng_safety',      label: 'Eng / Safety' },
+  { key: 'date_final_approval',  label: 'Final Approval' },
+  { key: 'date_fop_complete',    label: 'FOP Complete' },
+]
 
 export default function ApprovalWorkflow({ gen }) {
   const stages = APPROVAL_STAGES.map(s => ({ ...s, date: gen[s.key] }))

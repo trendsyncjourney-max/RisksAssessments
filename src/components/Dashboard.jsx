@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
 
 const DEPT_LABELS = { FSS: 'FOP', GOP: 'GOP', SAFE: 'Safety', ENG: 'ENG', MGT: 'MGT' }
-const STATUS_OPTIONS = ['Assessment Completed', 'ENG', 'Safety', 'CATB', 'In Progress']
-const OPS_OPTIONS = ['ETOPS Alternate', 'Destination Alternate', 'Destination Airfield']
+const STATUS_OPTIONS = ['Assessment Completed', 'Assessment Terminated', 'In Progress', 'CATB', 'ENG', 'Safety']
+const OPS_OPTIONS = ['Destination Airfield', 'Destination Alternate', 'ETOPS Alternate', 'En Route Alternate', 'Emergency Alternate']
 
 function statusClass(s) {
   if (s === 'Assessment Completed') return 'completed'
