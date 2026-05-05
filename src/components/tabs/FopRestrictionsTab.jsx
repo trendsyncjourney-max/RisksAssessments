@@ -12,8 +12,8 @@ function Toggle({ label, checked, onChange }) {
   )
 }
 
-export default function FopRestrictionsTab({ restrictions, onChange }) {
-  function set(field, value) { onChange({ ...restrictions, [field]: value }) }
+export default function FopRestrictionsTab({ restrictions, onChange, disabled }) {
+  function set(field, value) { if (!disabled) onChange({ ...restrictions, [field]: value }) }
 
   return (
     <div className="tab-content">

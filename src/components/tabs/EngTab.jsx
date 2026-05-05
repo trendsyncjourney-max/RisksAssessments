@@ -10,8 +10,8 @@ function Toggle({ label, checked, onChange }) {
   )
 }
 
-export default function EngTab({ eng, onChange }) {
-  function set(field, value) { onChange({ ...eng, [field]: value }) }
+export default function EngTab({ eng, onChange, disabled }) {
+  function set(field, value) { if (!disabled) onChange({ ...eng, [field]: value }) }
 
   return (
     <div className="tab-content">

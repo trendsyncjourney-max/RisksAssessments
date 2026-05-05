@@ -1,7 +1,7 @@
 import { RA_STATUS_OPTIONS } from '../../data/initialData.js'
 
-export default function SafeTab({ safe, onChange }) {
-  function set(field, value) { onChange({ ...safe, [field]: value }) }
+export default function SafeTab({ safe, onChange, disabled }) {
+  function set(field, value) { if (!disabled) onChange({ ...safe, [field]: value }) }
 
   return (
     <div className="tab-content">

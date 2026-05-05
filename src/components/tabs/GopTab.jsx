@@ -10,8 +10,8 @@ function Toggle({ label, checked, onChange }) {
   )
 }
 
-export default function GopTab({ gop, onChange }) {
-  function set(field, value) { onChange({ ...gop, [field]: value }) }
+export default function GopTab({ gop, onChange, disabled }) {
+  function set(field, value) { if (!disabled) onChange({ ...gop, [field]: value }) }
 
   return (
     <div className="tab-content">

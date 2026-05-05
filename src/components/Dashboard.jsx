@@ -1,83 +1,134 @@
-import { useState } from 'react'
-import { APPROVAL_STAGES, STATUS_OPTIONS, OPS_TYPE_OPTIONS, blankGen, blankRunway, blankRestrictions, blankGop, blankSafe, blankEng } from '../data/initialData.js'
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase.js'
 
-function statusClass(status) {
-  if (status === 'Assessment Completed') return 'completed'
-  if (status === 'ENG') return 'eng'
-  if (status === 'Safety') return 'safety'
-  if (status === 'CATB') return 'catb'
+const DEPT_LABELS = { FSS: 'FOP', GOP: 'GOP', SAFE: 'Safety', ENG: 'ENG', MGT: 'MGT' }
+const STATUS_OPTIONS = ['Assessment Completed', 'ENG', 'Safety', 'CATB', 'In Progress']
+const OPS_OPTIONS = ['ETOPS Alternate', 'Destination Alternate', 'Destination Airfield']
+
+function statusClass(s) {
+  if (s === 'Assessment Completed') return 'completed'
+  if (s === 'ENG') return 'eng'
+  if (s === 'Safety') return 'safety'
+  if (s === 'CATB') return 'catb'
   return 'progress'
 }
 
-function approvalProgress(gen) {
-  return APPROVAL_STAGES.map(s => !!gen[s.key])
+function dfsLabel(n) {
+  if (n >= 5) return 'Submitted'
+  if (n >= 4) return 'Signed'
+  if (n >= 3) return 'Synced'
+  if (n >= 2) return 'TBS'
+  return 'Pending'
 }
 
-export default function Dashboard({ airfields, onSelect, onAdd }) {
+export default function Dashboard({ profile, onSelect, onSignOut }) {
+  const [airfields, setAirfields] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ icao: '', iata: '', name: '', country: '', operationsType: 'Destination Airfield' })
+  const [form, setForm] = useState({ icao: '', iata: '', name: '', country: '', operations_type: 'Destination Airfield' })
   const [err, setErr] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  function handleCreate() {
-    if (!form.icao.trim()) { setErr('ICAO code is required'); return }
-    if (!form.name.trim()) { setErr('Airfield name is required'); return }
-    const id = form.icao.trim().toUpperCase()
-    if (airfields.find(a => a.id === id)) { setErr('An airfield with this ICAO code already exists'); return }
-    const airfield = {
-      id,
-      gen: blankGen({ icao: id, iata: form.iata.trim().toUpperCase(), name: form.name.trim(), country: form.country.trim(), operationsType: form.operationsType }),
-      fopRunways: [blankRunway({ id: Date.now() })],
-      fopRestrictions: blankRestrictions(),
-      gop: blankGop(),
-      safe: blankSafe(),
-      eng: blankEng(),
-    }
-    setShowModal(false)
-    setForm({ icao: '', iata: '', name: '', country: '', operationsType: 'Destination Airfield' })
-    setErr('')
-    onAdd(airfield)
+  useEffect(() => {
+    loadAirfields()
+    const sub = supabase.channel('airfields-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'airfields' }, loadAirfields)
+      .subscribe()
+    return () => supabase.removeChannel(sub)
+  }, [])
+
+  async function loadAirfields() {
+    const { data } = await supabase
+      .from('airfields')
+      .select(`*, fss_assessments(dfs_status), gop_assessments(dfs_status), safety_assessments(dfs_status), eng_assessments(dfs_status), mgt_assessments(dfs_status)`)
+      .order('created_at')
+    if (data) setAirfields(data)
+    setLoading(false)
   }
 
-  const completed = airfields.filter(a => a.gen.status === 'Assessment Completed').length
+  async function handleCreate() {
+    if (!form.icao.trim()) { setErr('ICAO code required'); return }
+    if (!form.name.trim()) { setErr('Name required'); return }
+    setSaving(true); setErr('')
+    const { data, error } = await supabase.from('airfields').insert({
+      icao: form.icao.trim().toUpperCase(),
+      iata: form.iata.trim().toUpperCase() || null,
+      name: form.name.trim(),
+      country: form.country.trim(),
+      operations_type: form.operations_type
+    }).select().single()
+    setSaving(false)
+    if (error) { setErr(error.message); return }
+    setShowModal(false)
+    setForm({ icao: '', iata: '', name: '', country: '', operations_type: 'Destination Airfield' })
+    onSelect(data)
+  }
+
+  const canCreate = ['ADMIN', 'FSS', 'MGT'].includes(profile?.department)
+
+  if (loading) return (
+    <>
+      <header className="app-header">
+        <h1>Risk Assessments</h1>
+        <div className="header-right">
+          <span className="dept-badge">{profile?.department}</span>
+          <button className="header-btn" onClick={onSignOut}>Sign Out</button>
+        </div>
+      </header>
+      <div className="loading">Loading airfields…</div>
+    </>
+  )
 
   return (
     <>
       <header className="app-header">
         <h1>Risk Assessments</h1>
-        <button className="add-btn" onClick={() => setShowModal(true)}>+ New Airfield</button>
+        <div className="header-right">
+          <span className="dept-badge">{profile?.department} — {profile?.full_name}</span>
+          {canCreate && <button className="add-btn" onClick={() => setShowModal(true)}>+ New Airfield</button>}
+          <button className="header-btn" onClick={onSignOut}>Sign Out</button>
+        </div>
       </header>
 
       <div className="dashboard">
         <div className="dashboard-title">Airfield Assessments</div>
-        <div className="dashboard-sub">
-          {airfields.length} airfields tracked &nbsp;·&nbsp; {completed} completed
-        </div>
+        <div className="dashboard-sub">{airfields.length} airfield{airfields.length !== 1 ? 's' : ''} tracked</div>
 
-        <div className="airfield-grid">
-          {airfields.map(af => {
-            const progress = approvalProgress(af.gen)
-            const doneCount = progress.filter(Boolean).length
-            return (
-              <div key={af.id} className="airfield-card" onClick={() => onSelect(af)}>
-                <div className="card-top">
-                  <div className="card-codes">
-                    <span className="card-icao">{af.gen.icao || af.id}</span>
-                    {af.gen.iata && <span className="card-iata">{af.gen.iata}</span>}
+        {airfields.length === 0 ? (
+          <div className="empty">No airfields yet. {canCreate ? 'Create one to get started.' : 'Waiting for an admin to add airfields.'}</div>
+        ) : (
+          <div className="airfield-grid">
+            {airfields.map(af => {
+              const depts = [
+                { label: 'FOP', val: af.fss_assessments?.[0]?.dfs_status || 0 },
+                { label: 'GOP', val: af.gop_assessments?.[0]?.dfs_status || 0 },
+                { label: 'Safety', val: af.safety_assessments?.[0]?.dfs_status || 0 },
+                { label: 'ENG', val: af.eng_assessments?.[0]?.dfs_status || 0 },
+                { label: 'MGT', val: af.mgt_assessments?.[0]?.dfs_status || 0 },
+              ]
+              return (
+                <div key={af.id} className="airfield-card" onClick={() => onSelect(af)}>
+                  <div className="card-top">
+                    <div className="card-codes">
+                      <span className="card-icao">{af.icao}</span>
+                      {af.iata && <span className="card-iata">{af.iata}</span>}
+                    </div>
+                    <span className={`status-badge ${statusClass(af.status)}`}>{af.status}</span>
                   </div>
-                  <span className={`status-badge ${statusClass(af.gen.status)}`}>{af.gen.status}</span>
+                  <div className="card-name">{af.name}</div>
+                  <div className="card-country">{af.country} {af.operations_type && `· ${af.operations_type}`}</div>
+                  <div className="card-dfs">
+                    {depts.map(d => (
+                      <span key={d.label} className={`dfs-chip ${d.val >= 4 ? 'signed' : d.val >= 3 ? 'synced' : d.val >= 2 ? 'tbs' : ''}`}>
+                        {d.label}: {dfsLabel(d.val)}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="card-name">{af.gen.name || 'Unnamed Airfield'}</div>
-                <div className="card-country">{af.gen.country || '—'}</div>
-                <div className="card-ops-type">{af.gen.operationsType}</div>
-                <div className="card-progress" title={`${doneCount} of ${APPROVAL_STAGES.length} approval stages complete`}>
-                  {progress.map((done, i) => (
-                    <div key={i} className={`stage-dot ${done ? 'done' : i === doneCount ? 'active' : ''}`} />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {showModal && (
@@ -85,33 +136,20 @@ export default function Dashboard({ airfields, onSelect, onAdd }) {
           <div className="modal">
             <h2>New Airfield</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="field">
-                <label>ICAO Code *</label>
-                <input type="text" maxLength={4} value={form.icao} onChange={e => setForm(f => ({ ...f, icao: e.target.value }))} placeholder="e.g. EGLL" />
-              </div>
-              <div className="field">
-                <label>IATA Code</label>
-                <input type="text" maxLength={3} value={form.iata} onChange={e => setForm(f => ({ ...f, iata: e.target.value }))} placeholder="e.g. LHR" />
-              </div>
-              <div className="field">
-                <label>Airfield Name *</label>
-                <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. London Heathrow" />
-              </div>
-              <div className="field">
-                <label>Country</label>
-                <input type="text" value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} placeholder="e.g. United Kingdom" />
-              </div>
-              <div className="field">
-                <label>Operations Type</label>
-                <select value={form.operationsType} onChange={e => setForm(f => ({ ...f, operationsType: e.target.value }))}>
-                  {OPS_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              <div className="field"><label>ICAO Code *</label><input type="text" maxLength={4} value={form.icao} onChange={e => setForm(f => ({ ...f, icao: e.target.value }))} placeholder="e.g. EGLL" /></div>
+              <div className="field"><label>IATA Code</label><input type="text" maxLength={3} value={form.iata} onChange={e => setForm(f => ({ ...f, iata: e.target.value }))} placeholder="e.g. LHR" /></div>
+              <div className="field"><label>Name *</label><input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. London Heathrow" /></div>
+              <div className="field"><label>Country</label><input type="text" value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} placeholder="e.g. United Kingdom" /></div>
+              <div className="field"><label>Operations Type</label>
+                <select value={form.operations_type} onChange={e => setForm(f => ({ ...f, operations_type: e.target.value }))}>
+                  {OPS_OPTIONS.map(o => <option key={o}>{o}</option>)}
                 </select>
               </div>
-              {err && <div style={{ color: 'var(--danger)', fontSize: 12 }}>{err}</div>}
+              {err && <div className="auth-err">{err}</div>}
             </div>
             <div className="modal-actions">
               <button className="cancel-btn" onClick={() => { setShowModal(false); setErr('') }}>Cancel</button>
-              <button className="confirm-btn" onClick={handleCreate}>Create</button>
+              <button className="confirm-btn" onClick={handleCreate} disabled={saving}>{saving ? 'Creating…' : 'Create'}</button>
             </div>
           </div>
         </div>

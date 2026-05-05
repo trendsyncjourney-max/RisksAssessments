@@ -12,8 +12,8 @@ function Toggle({ label, checked, onChange }) {
   )
 }
 
-export default function GenTab({ gen, onChange }) {
-  function set(field, value) { onChange({ ...gen, [field]: value }) }
+export default function GenTab({ gen, onChange, disabled }) {
+  function set(field, value) { if (!disabled) onChange({ ...gen, [field]: value }) }
 
   return (
     <div className="tab-content">
