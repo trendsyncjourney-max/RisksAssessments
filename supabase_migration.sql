@@ -113,3 +113,14 @@ ALTER TABLE eng_assessments ADD COLUMN IF NOT EXISTS eng_comments text;
 ALTER TABLE mgt_assessments ADD COLUMN IF NOT EXISTS management_comments text;
 ALTER TABLE mgt_assessments ADD COLUMN IF NOT EXISTS mgt_notes text;
 ALTER TABLE mgt_assessments ADD COLUMN IF NOT EXISTS approved_by_mgt boolean DEFAULT false;
+
+-- RPC: clean_expired_locks (called by acquireLock in src/lib/locks.js)
+CREATE OR REPLACE FUNCTION clean_expired_locks()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM record_locks WHERE expires_at < now();
+END;
+$$;
