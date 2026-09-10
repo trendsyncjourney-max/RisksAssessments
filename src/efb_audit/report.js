@@ -14,7 +14,7 @@ function fmtHours(minutes) {
 }
 
 const HEADER = [
-  'NAME', 'Email', 'Flt hrs', 'Last Flt',
+  'NAME', 'Email', 'Flt hrs', 'Last Flt', 'Next Flt',
   'OPT', 'OPT days', 'OPT fail',
   'FSI', 'FSI days', 'FSI fail',
   'LIDO exp', 'LIDO days past', 'LIDO fail',
@@ -28,7 +28,7 @@ export function buildReportWorkbook(rows, { monthLabel } = {}) {
 
   for (const r of rows) {
     aoa.push([
-      r.name, r.email, fmtHours(r.blockMinutes), fmtDate(r.lastFlight),
+      r.name, r.email, fmtHours(r.blockMinutes), fmtDate(r.lastFlight), fmtDate(r.nextFlight),
       fmtDate(r.checks.opt.date), r.checks.opt.days ?? '', r.checks.opt.fail ? 'FAIL' : '',
       fmtDate(r.checks.fsi.date), r.checks.fsi.days ?? '', r.checks.fsi.fail ? 'FAIL' : '',
       fmtDate(r.checks.lido.date), r.checks.lido.days ?? '', r.checks.lido.fail ? 'FAIL' : '',

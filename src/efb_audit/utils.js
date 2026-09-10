@@ -91,3 +91,20 @@ export function currentPeriod() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+
+// "yyyy-mm" -> { start, end } UTC Date bounds covering the whole month
+// (start = day 1 00:00:00, end = last day 23:59:59.999).
+export function periodToRange(period) {
+  const m = String(period).match(/^(\d{4})-(\d{2})$/)
+  if (!m) return { start: null, end: null }
+  const year = +m[1]
+  const month = +m[2]
+  const start = new Date(Date.UTC(year, month - 1, 1))
+  const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999))
+  return { start, end }
+}
+
+// Strips the time component, keeping only the UTC calendar date.
+export function dateOnlyUTC(d) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+}

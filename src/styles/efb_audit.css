@@ -18,6 +18,7 @@
 .efb-primary:disabled { opacity: 0.6; cursor: default; }
 
 .efb-error { color: #b00020; margin-top: 10px; }
+.efb-note { color: #666; font-size: 0.85rem; margin: 0 0 12px; }
 
 .efb-download-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 

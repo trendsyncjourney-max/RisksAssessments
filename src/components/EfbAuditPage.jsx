@@ -6,7 +6,7 @@ import {
 } from '../efb_audit/parsers.js'
 import { buildAudit } from '../efb_audit/buildAudit.js'
 import { buildReportWorkbook, workbookToBlob, buildEmlZip } from '../efb_audit/report.js'
-import { periodToLabel, periodToReferenceDate, currentPeriod } from '../efb_audit/utils.js'
+import { periodToLabel, periodToReferenceDate, periodToRange, currentPeriod } from '../efb_audit/utils.js'
 import '../styles/efb_audit.css'
 
 const FILE_SLOTS = [
@@ -91,9 +91,11 @@ export default function EfbAuditPage({ onBack }) {
         files.lido.arrayBuffer(),
       ])
 
+      const { start: reportMonthStart, end: reportMonthEnd } = periodToRange(period)
+
       const aimsBio = parseAimsBio(aimsBioBuf)
       const aimsBlk = parseAimsBlkDuty(aimsBlkBuf)
-      const aimsDaily = parseAimsDailyDuty(aimsDailyBuf)
+      const aimsDaily = parseAimsDailyDuty(aimsDailyBuf, { reportMonthStart, reportMonthEnd })
       const fsi = parseFsi(fsiText)
       const docunet = parseDocunet(docunetText)
       const opt = parseOpt(optText)
@@ -182,6 +184,7 @@ export default function EfbAuditPage({ onBack }) {
       {rows && (
         <section className="efb-card">
           <h2>3. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant</h2>
+          <p className="efb-note">Crew with zero block hours this month, or no flight scheduled from today onward (on leave), are excluded from this list entirely.</p>
           <div className="efb-download-row">
             <button onClick={downloadReport}>Download report (.xlsx)</button>
             <button onClick={downloadEmls} disabled={nonCompliantCount === 0}>Download .eml drafts (.zip)</button>
@@ -190,7 +193,7 @@ export default function EfbAuditPage({ onBack }) {
             <table className="efb-table">
               <thead>
                 <tr>
-                  <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th>
+                  <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
                   <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>Failed</th>
                 </tr>
               </thead>
@@ -201,6 +204,7 @@ export default function EfbAuditPage({ onBack }) {
                     <td>{r.email}</td>
                     <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
                     <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
+                    <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>
                     <td>{r.checks.opt.fail ? `FAIL (${r.checks.opt.days ?? '?'}d)` : 'OK'}</td>
                     <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.days ?? '?'}d)` : 'OK'}</td>
                     <td>{r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK'}</td>

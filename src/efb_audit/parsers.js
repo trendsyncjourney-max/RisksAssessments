@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { normEmail, parseDate, hhmmToMinutes, parseDdMmYyyy } from './utils.js'
+import { normEmail, parseDate, hhmmToMinutes, parseDdMmYyyy, dateOnlyUTC } from './utils.js'
 
 function readWorkbook(data) {
   return XLSX.read(data, { type: data instanceof ArrayBuffer || ArrayBuffer.isView(data) ? 'array' : 'string', cellDates: true })
@@ -63,13 +63,20 @@ export function parseAimsBlkDuty(data) {
   return { byId }
 }
 
-// ---------- AIMS_daily_duty: ID -> last flight Date (max date with non-empty col N) ----------
-export function parseAimsDailyDuty(data) {
+// ---------- AIMS_daily_duty: ID -> { lastFlight, nextFlight } ----------
+// lastFlight = latest date with a flight (non-empty col N) within the
+// report month only. nextFlight = earliest date with a flight on/after
+// `today`, anywhere in the file (the export typically spans the report
+// month through the current month, so this looks ahead of the report
+// month too). No nextFlight found at all means the crew member has
+// nothing scheduled going forward — treated as "on leave" by the caller.
+export function parseAimsDailyDuty(data, { reportMonthStart = null, reportMonthEnd = null, today = new Date() } = {}) {
   const wb = readWorkbook(data)
   const rows = sheetRows(wb.Sheets[wb.SheetNames[0]])
   const headerIdx = findHeaderRow(rows, ['date', 'duty'])
   const byId = new Map()
   let currentId = null
+  const todayDate = dateOnlyUTC(today)
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i]
@@ -83,12 +90,14 @@ export function parseAimsDailyDuty(data) {
       const isFlight = blockTime != null && String(blockTime).trim() !== ''
       if (isFlight) {
         const entry = byId.get(currentId)
-        if (!entry.lastFlight || asDate > entry.lastFlight) entry.lastFlight = asDate
+        const inReportMonth = (!reportMonthStart || asDate >= reportMonthStart) && (!reportMonthEnd || asDate <= reportMonthEnd)
+        if (inReportMonth && (!entry.lastFlight || asDate > entry.lastFlight)) entry.lastFlight = asDate
+        if (asDate >= todayDate && (!entry.nextFlight || asDate < entry.nextFlight)) entry.nextFlight = asDate
       }
     } else {
       // new crew block — column A holds the AIMS ID
       currentId = s
-      if (!byId.has(currentId)) byId.set(currentId, { lastFlight: null })
+      if (!byId.has(currentId)) byId.set(currentId, { lastFlight: null, nextFlight: null })
     }
   }
   return { byId }

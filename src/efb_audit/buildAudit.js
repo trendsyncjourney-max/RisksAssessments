@@ -47,12 +47,13 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
     rec.blockMinutes = blk.blockMinutes
   }
 
-  // Last actual flight date
+  // Last flight within the report month + next flight from today
   for (const [id, daily] of aimsDaily.byId) {
     const bio = aimsBio.byId.get(id)
     if (!bio) continue
     const rec = getCrew(bio.email)
     rec.lastFlight = daily.lastFlight
+    rec.nextFlight = daily.nextFlight
   }
 
   // Docunet: username -> email + last up to date
@@ -102,6 +103,11 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
     const flewLastMonth = (rec.blockMinutes || 0) > 0
     if (!flewLastMonth) continue
 
+    // Grace: no flight scheduled from today onward means they're on leave —
+    // ignore them entirely, even if they'd otherwise fail a check.
+    const onLeave = !rec.nextFlight
+    if (onLeave) continue
+
     const checks = {}
     for (const key of ['fsi', 'docunet', 'opt']) {
       const dateField = { fsi: 'fsiLastUpdate', docunet: 'docunetLastUpdate', opt: 'optLastUpdate' }[key]
@@ -128,6 +134,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
       id: rec.id,
       blockMinutes: rec.blockMinutes || 0,
       lastFlight: rec.lastFlight || null,
+      nextFlight: rec.nextFlight || null,
       checks,
       nonCompliant: failedSystems.length > 0,
       failedSystems,
