@@ -6,6 +6,9 @@ import AirfieldDetail from './components/AirfieldDetail.jsx'
 import PresenceBar from './components/PresenceBar.jsx'
 import ChatPanel from './components/ChatPanel.jsx'
 import VoiceCallUI from './components/VoiceCallUI.jsx'
+import EfbAuditPage from './components/EfbAuditPage.jsx'
+
+const isEfbAuditRoute = () => window.location.pathname.startsWith('/efb_monthly_audit')
 
 export default function App() {
   const [session, setSession] = useState(undefined)
@@ -50,6 +53,10 @@ export default function App() {
 
   if (session === undefined) return <div className="loading">Loading…</div>
   if (!session) return <AuthPage />
+
+  if (isEfbAuditRoute()) {
+    return <EfbAuditPage onBack={() => { window.location.pathname = '/' }} />
+  }
 
   return (
     <>

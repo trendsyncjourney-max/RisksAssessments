@@ -86,6 +86,7 @@ export default function Dashboard({ profile, onSelect, onSignOut }) {
         <div className="header-right">
           <span className="dept-badge">{profile?.department} — {profile?.full_name}</span>
           {canCreate && <button className="add-btn" onClick={() => setShowModal(true)}>+ New Airfield</button>}
+          <button className="header-btn" onClick={() => { window.location.pathname = '/efb_monthly_audit' }}>EFB Audit</button>
           <button className="header-btn" onClick={onSignOut}>Sign Out</button>
         </div>
       </header>

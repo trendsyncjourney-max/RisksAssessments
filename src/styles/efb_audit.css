@@ -1,0 +1,29 @@
+.efb-audit-page { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.efb-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.efb-header h1 { font-size: 1.3rem; margin: 0; }
+.efb-back { background: none; border: 1px solid #ccc; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+
+.efb-card { background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.efb-card h2 { font-size: 1rem; margin: 0 0 12px; }
+
+.efb-file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.efb-file-slot { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.efb-file-ok { color: #1a7f37; font-size: 0.8rem; }
+
+.efb-run-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.efb-run-row input { flex: 1; min-width: 180px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+.efb-primary { background: #d40511; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; }
+.efb-primary:disabled { opacity: 0.6; cursor: default; }
+
+.efb-error { color: #b00020; margin-top: 10px; }
+
+.efb-download-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+
+.efb-table-wrap { overflow-x: auto; }
+.efb-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.efb-table th, .efb-table td { border: 1px solid #e2e2e2; padding: 6px 8px; text-align: left; white-space: nowrap; }
+.efb-row-fail { background: #fff2f2; }
+
+.efb-admin-toggle { cursor: pointer; }
+.efb-admin-add { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.efb-admin-add input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
