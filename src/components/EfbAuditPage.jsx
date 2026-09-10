@@ -208,7 +208,7 @@ export default function EfbAuditPage({ onBack }) {
                     <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
                     <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>
                     <td>{r.checks.opt.fail ? `FAIL (${r.checks.opt.days ?? '?'}d)` : 'OK'}</td>
-                    <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.days ?? '?'}d)` : 'OK'}</td>
+                    <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.unread ?? '?'} unread)` : 'OK'}</td>
                     <td>{r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK'}</td>
                     <td>{r.checks.docunet.fail ? `FAIL (${r.checks.docunet.days ?? '?'}d)` : 'OK'}</td>
                     <td>{r.failedSystems.join(', ')}</td>

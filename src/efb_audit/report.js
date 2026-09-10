@@ -16,7 +16,7 @@ function fmtHours(minutes) {
 const HEADER = [
   'NAME', 'Email', 'Flt hrs', 'Last Flt', 'Next Flt',
   'OPT', 'OPT days', 'OPT fail',
-  'FSI', 'FSI days', 'FSI fail',
+  'FSI unread', 'FSI fail',
   'LIDO exp', 'LIDO days past', 'LIDO fail',
   'Docunet', 'Docunet days', 'Docunet fail',
   'Non-Compliant', 'Failed Systems', 'Remarks',
@@ -30,7 +30,7 @@ export function buildReportWorkbook(rows, { monthLabel } = {}) {
     aoa.push([
       r.name, r.email, fmtHours(r.blockMinutes), fmtDate(r.lastFlight), fmtDate(r.nextFlight),
       fmtDate(r.checks.opt.date), r.checks.opt.days ?? '', r.checks.opt.fail ? 'FAIL' : '',
-      fmtDate(r.checks.fsi.date), r.checks.fsi.days ?? '', r.checks.fsi.fail ? 'FAIL' : '',
+      r.checks.fsi.unread ?? '', r.checks.fsi.fail ? 'FAIL' : '',
       fmtDate(r.checks.lido.date), r.checks.lido.days ?? '', r.checks.lido.fail ? 'FAIL' : '',
       fmtDate(r.checks.docunet.date), r.checks.docunet.days ?? '', r.checks.docunet.fail ? 'FAIL' : '',
       r.nonCompliant ? 'Y' : 'N', r.failedSystems.join(', '), '',
@@ -76,6 +76,9 @@ function draftBody(row, monthLabel) {
     ...row.failedSystems.map((s) => {
       const key = Object.keys(RULES).find((k) => RULES[k].label === s)
       const c = row.checks[key]
+      if (key === 'fsi') {
+        return `- ${s}: ${c.unread != null ? `${c.unread} unread` : 'no data'} (threshold: >=${RULES.fsi.unreadThreshold} unread)`
+      }
       return `- ${s}: ${c.days != null ? `${c.days} day(s)` : 'no data'} (threshold: >${RULES[key].days} days)`
     }),
     '',

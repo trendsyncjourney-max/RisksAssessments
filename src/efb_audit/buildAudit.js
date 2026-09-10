@@ -2,8 +2,9 @@ import { daysSince } from './utils.js'
 import { normalizeAimsBioName } from './parseDoj.helpers.js'
 
 // Thresholds from efb_audit.xlsx column G ("rule (fail if)").
+// FSI fails on the unread (Non Compliance Count) value itself, not a date.
 export const RULES = {
-  fsi: { label: 'FSI', days: 20 },
+  fsi: { label: 'FSI', unreadThreshold: 22 },
   docunet: { label: 'Docunet', days: 17 },
   opt: { label: 'OPT', days: 21 },
   lido: { label: 'LIDO', days: 20 },
@@ -71,6 +72,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
     if (!email) continue
     const rec = getCrew(email)
     rec.fsiLastUpdate = f.lastUpToDate
+    rec.fsiUnread = f.unread === Infinity ? null : f.unread
   }
 
   // OPT: keyed directly by email
@@ -109,8 +111,16 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
     if (onLeave) continue
 
     const checks = {}
-    for (const key of ['fsi', 'docunet', 'opt']) {
-      const dateField = { fsi: 'fsiLastUpdate', docunet: 'docunetLastUpdate', opt: 'optLastUpdate' }[key]
+
+    // FSI: fail purely on the unread (Non Compliance Count) value — no date check.
+    {
+      const unread = rec.fsiUnread ?? null
+      const fail = unread == null || unread >= RULES.fsi.unreadThreshold
+      checks.fsi = { date: rec.fsiLastUpdate || null, unread, fail }
+    }
+
+    for (const key of ['docunet', 'opt']) {
+      const dateField = { docunet: 'docunetLastUpdate', opt: 'optLastUpdate' }[key]
       const date = rec[dateField] || null
       const days = date ? daysSince(date, referenceDate) : null
       const fail = days == null || days > RULES[key].days
