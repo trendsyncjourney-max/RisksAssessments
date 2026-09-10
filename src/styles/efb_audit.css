@@ -12,6 +12,8 @@
 
 .efb-run-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .efb-run-row input { flex: 1; min-width: 180px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+.efb-run-row input[type="month"] { flex: none; width: auto; min-width: 0; }
+.efb-month-label { color: #555; font-size: 0.9rem; align-self: center; }
 .efb-primary { background: #d40511; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; }
 .efb-primary:disabled { opacity: 0.6; cursor: default; }
 

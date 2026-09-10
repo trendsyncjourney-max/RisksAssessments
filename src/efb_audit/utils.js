@@ -64,3 +64,30 @@ export function parseDdMmYyyy(s) {
   if (!m) return null
   return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]))
 }
+
+const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+
+// "yyyy-mm" (the value an <input type="month"> gives) -> "SEP 2026"
+export function periodToLabel(period) {
+  const m = String(period).match(/^(\d{4})-(\d{2})$/)
+  if (!m) return period
+  return `${MONTH_ABBR[+m[2] - 1]} ${m[1]}`
+}
+
+// "yyyy-mm" -> the date the audit should be evaluated "as of": the last day
+// of that month, capped at today for the current (or a future) month so an
+// in-progress month doesn't get penalized for days that haven't happened yet.
+export function periodToReferenceDate(period) {
+  const m = String(period).match(/^(\d{4})-(\d{2})$/)
+  if (!m) return new Date()
+  const year = +m[1]
+  const month = +m[2]
+  const lastDayOfMonth = new Date(Date.UTC(year, month, 0))
+  const today = new Date()
+  return lastDayOfMonth < today ? lastDayOfMonth : today
+}
+
+export function currentPeriod() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}

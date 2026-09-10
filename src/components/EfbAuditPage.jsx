@@ -6,6 +6,7 @@ import {
 } from '../efb_audit/parsers.js'
 import { buildAudit } from '../efb_audit/buildAudit.js'
 import { buildReportWorkbook, workbookToBlob, buildEmlZip } from '../efb_audit/report.js'
+import { periodToLabel, periodToReferenceDate, currentPeriod } from '../efb_audit/utils.js'
 import '../styles/efb_audit.css'
 
 const FILE_SLOTS = [
@@ -30,7 +31,7 @@ function downloadBlob(blob, filename) {
 
 export default function EfbAuditPage({ onBack }) {
   const [files, setFiles] = useState({})
-  const [monthLabel, setMonthLabel] = useState('')
+  const [period, setPeriod] = useState(currentPeriod)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [rows, setRows] = useState(null)
@@ -94,8 +95,9 @@ export default function EfbAuditPage({ onBack }) {
       }
 
       const lidoOverrides = new Map(overrides.map((o) => [o.lido_id, o.correct_email]))
+      const referenceDate = periodToReferenceDate(period)
 
-      const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames })
+      const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames }, { referenceDate })
       setRows(auditRows)
     } catch (e) {
       setError(e.message || String(e))
@@ -104,14 +106,16 @@ export default function EfbAuditPage({ onBack }) {
     }
   }
 
+  const monthLabel = periodToLabel(period)
+
   function downloadReport() {
     const wb = buildReportWorkbook(rows, { monthLabel })
-    downloadBlob(workbookToBlob(wb), `EFB_Audit_${monthLabel || 'report'}.xlsx`)
+    downloadBlob(workbookToBlob(wb), `EFB_Audit_${monthLabel}.xlsx`)
   }
 
   async function downloadEmls() {
     const zip = await buildEmlZip(rows, { monthLabel })
-    downloadBlob(zip, `EFB_Audit_${monthLabel || 'emails'}.eml.zip`)
+    downloadBlob(zip, `EFB_Audit_${monthLabel}_emails.zip`)
   }
 
   const nonCompliantCount = rows ? rows.filter((r) => r.nonCompliant).length : 0
@@ -124,7 +128,19 @@ export default function EfbAuditPage({ onBack }) {
       </header>
 
       <section className="efb-card">
-        <h2>1. Upload source files</h2>
+        <h2>1. Report month</h2>
+        <div className="efb-run-row">
+          <input
+            type="month"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+          />
+          <span className="efb-month-label">Reporting as of {monthLabel}</span>
+        </div>
+      </section>
+
+      <section className="efb-card">
+        <h2>2. Upload this month's source files</h2>
         <div className="efb-file-grid">
           {FILE_SLOTS.map((slot) => (
             <label key={slot.key} className="efb-file-slot">
@@ -140,12 +156,6 @@ export default function EfbAuditPage({ onBack }) {
         </div>
 
         <div className="efb-run-row">
-          <input
-            type="text"
-            placeholder="Month label (e.g. SEP 2026)"
-            value={monthLabel}
-            onChange={(e) => setMonthLabel(e.target.value)}
-          />
           <button className="efb-primary" disabled={running} onClick={runAudit}>
             {running ? 'Running…' : 'Run Audit'}
           </button>
@@ -155,7 +165,7 @@ export default function EfbAuditPage({ onBack }) {
 
       {rows && (
         <section className="efb-card">
-          <h2>2. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant</h2>
+          <h2>3. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant</h2>
           <div className="efb-download-row">
             <button onClick={downloadReport}>Download report (.xlsx)</button>
             <button onClick={downloadEmls} disabled={nonCompliantCount === 0}>Download .eml drafts (.zip)</button>
@@ -190,7 +200,7 @@ export default function EfbAuditPage({ onBack }) {
 
       <section className="efb-card">
         <div className="efb-admin-toggle" onClick={() => setShowAdmin((s) => !s)}>
-          <h2>{showAdmin ? '▼' : '▶'} LIDO email overrides ({overrides.length})</h2>
+          <h2>{showAdmin ? '▼' : '▶'} Admin — LIDO email overrides ({overrides.length})</h2>
         </div>
         {showAdmin && <LidoOverridesAdmin overrides={overrides} onSave={saveOverride} onDelete={deleteOverride} />}
       </section>
