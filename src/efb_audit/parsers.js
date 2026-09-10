@@ -95,6 +95,8 @@ export function parseAimsDailyDuty(data) {
 }
 
 // ---------- FSI.csv: Username -> lastUpToDate ----------
+// A crew member can show up on more than one row (multiple devices) — we
+// keep the row with the lowest Non Compliance Count ("unread") value.
 export function parseFsi(text) {
   const wb = readWorkbook(text)
   const rows = sheetRows(wb.Sheets[wb.SheetNames[0]])
@@ -104,14 +106,22 @@ export function parseFsi(text) {
     const row = rows[i]
     const username = row[colIndex('A')]
     if (username == null || String(username).trim() === '') continue
-    byUsername.set(String(username).trim().toLowerCase(), {
-      lastUpToDate: parseDate(row[colIndex('D')]),
-    })
+    const key = String(username).trim().toLowerCase()
+    const unreadRaw = row[colIndex('G')]
+    const unread = unreadRaw == null || unreadRaw === '' ? Infinity : Number(unreadRaw)
+    const candidate = { lastUpToDate: parseDate(row[colIndex('D')]), unread }
+
+    const existing = byUsername.get(key)
+    if (!existing || candidate.unread < existing.unread) {
+      byUsername.set(key, candidate)
+    }
   }
   return { byUsername }
 }
 
 // ---------- Docunet.csv: Username -> { email, lastUpToDate } ----------
+// A crew member can show up on more than one row (multiple devices) — we
+// keep the row with the latest Last Up To Date value.
 export function parseDocunet(text) {
   const wb = readWorkbook(text)
   const rows = sheetRows(wb.Sheets[wb.SheetNames[0]])
@@ -121,15 +131,23 @@ export function parseDocunet(text) {
     const row = rows[i]
     const username = row[colIndex('A')]
     if (username == null || String(username).trim() === '') continue
-    byUsername.set(String(username).trim().toLowerCase(), {
+    const key = String(username).trim().toLowerCase()
+    const candidate = {
       email: normEmail(row[colIndex('C')]),
       lastUpToDate: parseDate(row[colIndex('F')]),
-    })
+    }
+
+    const existing = byUsername.get(key)
+    if (!existing || !existing.lastUpToDate || (candidate.lastUpToDate && candidate.lastUpToDate > existing.lastUpToDate)) {
+      byUsername.set(key, candidate)
+    }
   }
   return { byUsername }
 }
 
 // ---------- OPT.csv: Email -> lastUpdated ----------
+// A crew member can show up on more than one row (multiple devices) — we
+// keep the row with the latest Updated (UTC) value.
 export function parseOpt(text) {
   const wb = readWorkbook(text)
   const rows = sheetRows(wb.Sheets[wb.SheetNames[0]])
@@ -149,6 +167,8 @@ export function parseOpt(text) {
 }
 
 // ---------- LIDO.xlsx (sheet "Lido mPilot"): LIDO ID -> { email, expiration } ----------
+// A crew member can show up on more than one row (multiple devices) — we
+// keep the row with the latest Expiration value.
 export function parseLido(data) {
   const wb = readWorkbook(data)
   const sheetName = wb.SheetNames.find((n) => n.toLowerCase().includes('mpilot')) || wb.SheetNames[wb.SheetNames.length - 1]
@@ -159,10 +179,16 @@ export function parseLido(data) {
     const row = rows[i]
     const id = row[colIndex('A')]
     if (id == null || String(id).trim() === '') continue
-    byId.set(String(id).trim(), {
+    const key = String(id).trim()
+    const candidate = {
       email: normEmail(row[colIndex('B')]),
       expiration: parseDate(row[colIndex('L')]),
-    })
+    }
+
+    const existing = byId.get(key)
+    if (!existing || !existing.expiration || (candidate.expiration && candidate.expiration > existing.expiration)) {
+      byId.set(key, candidate)
+    }
   }
   return { byId }
 }
