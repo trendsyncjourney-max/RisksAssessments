@@ -105,10 +105,10 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
     const flewLastMonth = (rec.blockMinutes || 0) > 0
     if (!flewLastMonth) continue
 
-    // Grace: no flight scheduled from today onward means they're on leave —
-    // ignore them entirely, even if they'd otherwise fail a check.
+    // On leave: no flight scheduled from today onward. They stay in the
+    // list (flagged), but never count as non-compliant even if a check
+    // below would otherwise fail.
     const onLeave = !rec.nextFlight
-    if (onLeave) continue
 
     const checks = {}
 
@@ -134,9 +134,9 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
       checks.lido = { date, days, fail }
     }
 
-    const failedSystems = Object.entries(checks)
-      .filter(([, c]) => c.fail)
-      .map(([key]) => RULES[key].label)
+    const failedSystems = onLeave
+      ? []
+      : Object.entries(checks).filter(([, c]) => c.fail).map(([key]) => RULES[key].label)
 
     rows.push({
       name: rec.name,
@@ -145,6 +145,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
       blockMinutes: rec.blockMinutes || 0,
       lastFlight: rec.lastFlight || null,
       nextFlight: rec.nextFlight || null,
+      onLeave,
       checks,
       nonCompliant: failedSystems.length > 0,
       failedSystems,

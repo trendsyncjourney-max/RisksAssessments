@@ -13,13 +13,14 @@ function fmtHours(minutes) {
   return `${h}:${String(m).padStart(2, '0')}`
 }
 
+// Columns A-P below, then Q=On Leave, R=Non-Compliant, S=Failed Systems, T=Remarks.
 const HEADER = [
   'NAME', 'Email', 'Flt hrs', 'Last Flt', 'Next Flt',
   'OPT', 'OPT days', 'OPT fail',
   'FSI unread', 'FSI fail',
   'LIDO exp', 'LIDO days past', 'LIDO fail',
   'Docunet', 'Docunet days', 'Docunet fail',
-  'Non-Compliant', 'Failed Systems', 'Remarks',
+  'On Leave', 'Non-Compliant', 'Failed Systems', 'Remarks',
 ]
 
 export function buildReportWorkbook(rows, { monthLabel } = {}) {
@@ -33,7 +34,7 @@ export function buildReportWorkbook(rows, { monthLabel } = {}) {
       r.checks.fsi.unread ?? '', r.checks.fsi.fail ? 'FAIL' : '',
       fmtDate(r.checks.lido.date), r.checks.lido.days ?? '', r.checks.lido.fail ? 'FAIL' : '',
       fmtDate(r.checks.docunet.date), r.checks.docunet.days ?? '', r.checks.docunet.fail ? 'FAIL' : '',
-      r.nonCompliant ? 'Y' : 'N', r.failedSystems.join(', '), '',
+      r.onLeave ? 'Y' : '', r.nonCompliant ? 'Y' : 'N', r.failedSystems.join(', '), '',
     ])
   }
 

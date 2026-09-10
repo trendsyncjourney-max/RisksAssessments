@@ -195,7 +195,7 @@ export default function EfbAuditPage() {
           {rows && (
             <section className="efb-card">
               <h2>3. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant</h2>
-              <p className="efb-note">Crew with zero block hours this month, or no flight scheduled from today onward (on leave), are excluded from this list entirely.</p>
+              <p className="efb-note">Crew with zero block hours this month are excluded from this list entirely. Crew with no flight scheduled from today onward are marked "On Leave" — they stay in the list but never count as non-compliant, even if a check below would otherwise fail.</p>
               <div className="efb-download-row">
                 <button onClick={downloadReport}>Download report (.xlsx)</button>
                 <button onClick={downloadEmls} disabled={nonCompliantCount === 0}>Download .eml drafts (.zip)</button>
@@ -205,12 +205,12 @@ export default function EfbAuditPage() {
                   <thead>
                     <tr>
                       <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
-                      <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>Failed</th>
+                      <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>On Leave</th><th>Failed</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r) => (
-                      <tr key={r.email} className={r.nonCompliant ? 'efb-row-fail' : ''}>
+                      <tr key={r.email} className={r.nonCompliant ? 'efb-row-fail' : r.onLeave ? 'efb-row-leave' : ''}>
                         <td>{r.name}</td>
                         <td>{r.email}</td>
                         <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
@@ -220,6 +220,7 @@ export default function EfbAuditPage() {
                         <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.unread ?? '?'} unread)` : 'OK'}</td>
                         <td>{r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK'}</td>
                         <td>{r.checks.docunet.fail ? `FAIL (${r.checks.docunet.days ?? '?'}d)` : 'OK'}</td>
+                        <td>{r.onLeave ? 'Y' : ''}</td>
                         <td>{r.failedSystems.join(', ')}</td>
                       </tr>
                     ))}

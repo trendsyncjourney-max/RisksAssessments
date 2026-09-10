@@ -67,6 +67,8 @@
 .efb-table td { border: 1px solid #e2e2e2; padding: 7px 10px; text-align: left; white-space: nowrap; color: #111827; }
 .efb-row-fail { background: #fff0f0; }
 .efb-row-fail td { color: #7a0d0d; }
+.efb-row-leave { background: #f3f3f3; }
+.efb-row-leave td { color: #666; }
 
 .efb-table td button {
   background: #fff; color: #111827; border: 1px solid #b8b8b8; border-radius: 5px;
