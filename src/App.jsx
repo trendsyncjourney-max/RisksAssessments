@@ -52,7 +52,7 @@ export default function App() {
   }
 
   if (isEfbAuditRoute()) {
-    return <EfbAuditPage onBack={() => { window.location.pathname = '/' }} />
+    return <EfbAuditPage />
   }
 
   if (session === undefined) return <div className="loading">Loading…</div>

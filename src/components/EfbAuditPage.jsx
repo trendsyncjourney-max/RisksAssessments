@@ -29,14 +29,14 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url)
 }
 
-export default function EfbAuditPage({ onBack }) {
+export default function EfbAuditPage() {
+  const [tab, setTab] = useState('audit')
   const [files, setFiles] = useState({})
   const [period, setPeriod] = useState(currentPeriod)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [rows, setRows] = useState(null)
   const [overrides, setOverrides] = useState([])
-  const [showAdmin, setShowAdmin] = useState(false)
 
   useEffect(() => { loadOverrides() }, [])
 
@@ -143,97 +143,103 @@ export default function EfbAuditPage({ onBack }) {
   return (
     <div className="efb-audit-page">
       <header className="efb-header">
-        <button className="efb-back" onClick={onBack}>← Back</button>
         <h1>EFB Monthly Compliance Audit</h1>
+        <nav className="efb-tabs">
+          <button className={tab === 'audit' ? 'efb-tab efb-tab-active' : 'efb-tab'} onClick={() => setTab('audit')}>
+            Audit
+          </button>
+          <button className={tab === 'admin' ? 'efb-tab efb-tab-active' : 'efb-tab'} onClick={() => setTab('admin')}>
+            LIDO Email List ({overrides.length})
+          </button>
+        </nav>
       </header>
 
-      <section className="efb-card">
-        <h2>1. Report month</h2>
-        <div className="efb-run-row">
-          <input
-            type="month"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-          />
-          <span className="efb-month-label">Reporting as of {monthLabel}</span>
-        </div>
-      </section>
-
-      <section className="efb-card">
-        <h2>2. Upload this month's source files</h2>
-        <div className="efb-file-grid">
-          {FILE_SLOTS.map((slot) => (
-            <label key={slot.key} className="efb-file-slot">
-              <span>{slot.label}{slot.optional ? '' : ' *'}</span>
+      {tab === 'audit' && (
+        <>
+          <section className="efb-card">
+            <h2>1. Report month</h2>
+            <div className="efb-run-row">
               <input
-                type="file"
-                accept={slot.accept}
-                onChange={(e) => handleFile(slot.key, e.target.files[0] || null)}
+                type="month"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
               />
-              {files[slot.key] && <span className="efb-file-ok">✓ {files[slot.key].name}</span>}
-            </label>
-          ))}
-        </div>
+              <span className="efb-month-label">Reporting as of {monthLabel}</span>
+            </div>
+          </section>
 
-        <div className="efb-run-row">
-          <button className="efb-primary" disabled={running} onClick={runAudit}>
-            {running ? 'Running…' : 'Run Audit'}
-          </button>
-        </div>
-        {error && <div className="efb-error">{error}</div>}
-      </section>
+          <section className="efb-card">
+            <h2>2. Upload this month's source files</h2>
+            <div className="efb-file-grid">
+              {FILE_SLOTS.map((slot) => (
+                <label key={slot.key} className="efb-file-slot">
+                  <span>{slot.label}{slot.optional ? '' : ' *'}</span>
+                  <input
+                    type="file"
+                    accept={slot.accept}
+                    onChange={(e) => handleFile(slot.key, e.target.files[0] || null)}
+                  />
+                  {files[slot.key] && <span className="efb-file-ok">✓ {files[slot.key].name}</span>}
+                </label>
+              ))}
+            </div>
 
-      {rows && (
-        <section className="efb-card">
-          <h2>3. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant</h2>
-          <p className="efb-note">Crew with zero block hours this month, or no flight scheduled from today onward (on leave), are excluded from this list entirely.</p>
-          <div className="efb-download-row">
-            <button onClick={downloadReport}>Download report (.xlsx)</button>
-            <button onClick={downloadEmls} disabled={nonCompliantCount === 0}>Download .eml drafts (.zip)</button>
-          </div>
-          <div className="efb-table-wrap">
-            <table className="efb-table">
-              <thead>
-                <tr>
-                  <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
-                  <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>Failed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.email} className={r.nonCompliant ? 'efb-row-fail' : ''}>
-                    <td>{r.name}</td>
-                    <td>{r.email}</td>
-                    <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
-                    <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
-                    <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>
-                    <td>{r.checks.opt.fail ? `FAIL (${r.checks.opt.days ?? '?'}d)` : 'OK'}</td>
-                    <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.unread ?? '?'} unread)` : 'OK'}</td>
-                    <td>{r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK'}</td>
-                    <td>{r.checks.docunet.fail ? `FAIL (${r.checks.docunet.days ?? '?'}d)` : 'OK'}</td>
-                    <td>{r.failedSystems.join(', ')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            <div className="efb-run-row">
+              <button className="efb-primary" disabled={running} onClick={runAudit}>
+                {running ? 'Running…' : 'Run Audit'}
+              </button>
+            </div>
+            {error && <div className="efb-error">{error}</div>}
+          </section>
+
+          {rows && (
+            <section className="efb-card">
+              <h2>3. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant</h2>
+              <p className="efb-note">Crew with zero block hours this month, or no flight scheduled from today onward (on leave), are excluded from this list entirely.</p>
+              <div className="efb-download-row">
+                <button onClick={downloadReport}>Download report (.xlsx)</button>
+                <button onClick={downloadEmls} disabled={nonCompliantCount === 0}>Download .eml drafts (.zip)</button>
+              </div>
+              <div className="efb-table-wrap">
+                <table className="efb-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
+                      <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>Failed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.email} className={r.nonCompliant ? 'efb-row-fail' : ''}>
+                        <td>{r.name}</td>
+                        <td>{r.email}</td>
+                        <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
+                        <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
+                        <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>
+                        <td>{r.checks.opt.fail ? `FAIL (${r.checks.opt.days ?? '?'}d)` : 'OK'}</td>
+                        <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.unread ?? '?'} unread)` : 'OK'}</td>
+                        <td>{r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK'}</td>
+                        <td>{r.checks.docunet.fail ? `FAIL (${r.checks.docunet.days ?? '?'}d)` : 'OK'}</td>
+                        <td>{r.failedSystems.join(', ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
       )}
 
-      <section className="efb-card">
-        <div className="efb-admin-toggle" onClick={() => setShowAdmin((s) => !s)}>
-          <h2>{showAdmin ? '▼' : '▶'} Admin — LIDO email overrides ({overrides.length})</h2>
-        </div>
-        {showAdmin && (
-          <LidoOverridesAdmin
-            overrides={overrides}
-            onSave={saveOverride}
-            onDelete={deleteOverride}
-            onBulkImport={bulkImportOverrides}
-            onReset={resetOverrides}
-          />
-        )}
-      </section>
+      {tab === 'admin' && (
+        <LidoOverridesAdmin
+          overrides={overrides}
+          onSave={saveOverride}
+          onDelete={deleteOverride}
+          onBulkImport={bulkImportOverrides}
+          onReset={resetOverrides}
+        />
+      )}
     </div>
   )
 }
@@ -243,6 +249,9 @@ function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport, onReset
   const [newEmail, setNewEmail] = useState('')
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editValue, setEditValue] = useState('')
+  const [filter, setFilter] = useState('')
 
   async function handleImportFile(file) {
     if (!file) return
@@ -258,13 +267,30 @@ function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport, onReset
     }
   }
 
+  function startEdit(o) {
+    setEditingId(o.lido_id)
+    setEditValue(o.correct_email)
+  }
+
+  function saveEdit(id) {
+    onSave(id, editValue)
+    setEditingId(null)
+    setEditValue('')
+  }
+
+  const visible = filter.trim()
+    ? overrides.filter((o) => o.lido_id.includes(filter.trim()) || o.correct_email.includes(filter.trim().toLowerCase()))
+    : overrides
+
   return (
-    <div className="efb-admin">
+    <section className="efb-card">
+      <h2>LIDO Email List</h2>
       <p className="efb-note">
         This list is bundled into the app (554 rows from LIDO_Correct_email.xlsx) and stored in this browser
-        only — edits here don't sync to other devices/browsers. Use "Bulk import" below to load an updated
+        only — edits here don't sync to other devices/browsers. Use "Bulk import" to load an updated
         spreadsheet, or "Reset to bundled defaults" to discard local edits.
       </p>
+
       <div className="efb-admin-import">
         <label className="efb-file-slot">
           <span>Bulk import from LIDO_Correct_email.xlsx (ID in col A, correct email in col B)</span>
@@ -285,22 +311,49 @@ function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport, onReset
       <div className="efb-admin-add">
         <input placeholder="LIDO ID" value={newId} onChange={(e) => setNewId(e.target.value)} />
         <input placeholder="Correct DHL email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-        <button onClick={() => { onSave(newId, newEmail); setNewId(''); setNewEmail('') }}>Add / Update</button>
+        <button className="efb-primary" onClick={() => { onSave(newId, newEmail); setNewId(''); setNewEmail('') }}>Add</button>
+        <input
+          className="efb-filter"
+          placeholder="Filter by ID or email…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
       </div>
+
+      <p className="efb-note">Showing {visible.length} of {overrides.length}</p>
+
       <div className="efb-table-wrap">
         <table className="efb-table">
-          <thead><tr><th>LIDO ID</th><th>Correct Email</th><th></th></tr></thead>
+          <thead><tr><th>LIDO ID</th><th>Correct Email</th><th style={{ width: 160 }}>Actions</th></tr></thead>
           <tbody>
-            {overrides.map((o) => (
+            {visible.map((o) => (
               <tr key={o.lido_id}>
                 <td>{o.lido_id}</td>
-                <td>{o.correct_email}</td>
-                <td><button onClick={() => onDelete(o.lido_id)}>Delete</button></td>
+                <td>
+                  {editingId === o.lido_id ? (
+                    <input value={editValue} onChange={(e) => setEditValue(e.target.value)} />
+                  ) : (
+                    o.correct_email
+                  )}
+                </td>
+                <td>
+                  {editingId === o.lido_id ? (
+                    <>
+                      <button onClick={() => saveEdit(o.lido_id)}>Save</button>
+                      <button onClick={() => setEditingId(null)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => startEdit(o)}>Edit</button>
+                      <button onClick={() => onDelete(o.lido_id)}>Delete</button>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   )
 }
