@@ -90,8 +90,13 @@ export default function EfbAuditPage({ onBack }) {
 
       let dojNames = null
       if (files.doj) {
-        const { parseDoj } = await import('../efb_audit/parseDoj.js')
-        dojNames = await parseDoj(await files.doj.arrayBuffer())
+        try {
+          const { parseDoj } = await import('../efb_audit/parseDoj.js')
+          dojNames = await parseDoj(await files.doj.arrayBuffer())
+        } catch (e) {
+          console.error('DOJ roster PDF failed to parse — continuing without the active-roster filter', e)
+          setError(`Note: DOJ.pdf could not be read (${e.message || e}) — audit ran without the active-roster filter.`)
+        }
       }
 
       const lidoOverrides = new Map(overrides.map((o) => [o.lido_id, o.correct_email]))

@@ -8,7 +8,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 // "SURNAME FIRSTNAME" strings for matching against AIMS_bio names.
 export async function parseDoj(data) {
   const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data
-  const doc = await pdfjsLib.getDocument({ data: bytes }).promise
+  // We already have the full file in memory, so disable pdf.js's
+  // streaming/range-request paths — some Safari versions choke on the
+  // ReadableStream APIs those use ("undefined is not a function (near
+  // '...value of readableStream...')").
+  const doc = await pdfjsLib.getDocument({
+    data: bytes,
+    disableStream: true,
+    disableAutoFetch: true,
+    disableRange: true,
+  }).promise
   const names = new Set()
 
   for (let p = 1; p <= doc.numPages; p++) {
