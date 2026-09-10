@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase.js'
 import {
   parseAimsBio, parseAimsBlkDuty, parseAimsDailyDuty,
   parseFsi, parseDocunet, parseOpt, parseLido, parseLidoCorrectEmail,
@@ -7,6 +6,7 @@ import {
 import { buildAudit } from '../efb_audit/buildAudit.js'
 import { buildReportWorkbook, workbookToBlob, buildEmlZip } from '../efb_audit/report.js'
 import { periodToLabel, periodToReferenceDate, periodToRange, currentPeriod } from '../efb_audit/utils.js'
+import * as overridesStore from '../efb_audit/lidoOverridesStore.js'
 import '../styles/efb_audit.css'
 
 const FILE_SLOTS = [
@@ -40,31 +40,33 @@ export default function EfbAuditPage({ onBack }) {
 
   useEffect(() => { loadOverrides() }, [])
 
-  async function loadOverrides() {
-    const { data } = await supabase.from('lido_email_overrides').select('*').order('lido_id')
-    if (data) setOverrides(data)
+  function loadOverrides() {
+    setOverrides(overridesStore.loadOverrides())
   }
 
-  async function saveOverride(lido_id, correct_email) {
+  function saveOverride(lido_id, correct_email) {
     if (!lido_id.trim() || !correct_email.trim()) return
-    await supabase.from('lido_email_overrides').upsert({ lido_id: lido_id.trim(), correct_email: correct_email.trim().toLowerCase() })
+    overridesStore.saveOverride(lido_id, correct_email)
     loadOverrides()
   }
 
-  async function deleteOverride(lido_id) {
-    await supabase.from('lido_email_overrides').delete().eq('lido_id', lido_id)
+  function deleteOverride(lido_id) {
+    overridesStore.deleteOverride(lido_id)
+    loadOverrides()
+  }
+
+  function resetOverrides() {
+    overridesStore.resetOverridesToDefaults()
     loadOverrides()
   }
 
   async function bulkImportOverrides(file) {
     const buf = await file.arrayBuffer()
     const parsed = parseLidoCorrectEmail(buf) // Map<lido_id, correct_email>
-    const records = [...parsed.entries()].map(([lido_id, correct_email]) => ({ lido_id, correct_email }))
-    if (records.length === 0) throw new Error('No ID / email rows found in that file')
-    const { error } = await supabase.from('lido_email_overrides').upsert(records, { onConflict: 'lido_id' })
-    if (error) throw error
-    await loadOverrides()
-    return records.length
+    if (parsed.size === 0) throw new Error('No ID / email rows found in that file')
+    const count = overridesStore.bulkUpsertOverrides(parsed)
+    loadOverrides()
+    return count
   }
 
   function handleFile(key, file) {
@@ -112,7 +114,7 @@ export default function EfbAuditPage({ onBack }) {
         }
       }
 
-      const lidoOverrides = new Map(overrides.map((o) => [o.lido_id, o.correct_email]))
+      const lidoOverrides = overridesStore.overridesAsMap()
       const referenceDate = periodToReferenceDate(period)
 
       const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames }, { referenceDate })
@@ -228,6 +230,7 @@ export default function EfbAuditPage({ onBack }) {
             onSave={saveOverride}
             onDelete={deleteOverride}
             onBulkImport={bulkImportOverrides}
+            onReset={resetOverrides}
           />
         )}
       </section>
@@ -235,7 +238,7 @@ export default function EfbAuditPage({ onBack }) {
   )
 }
 
-function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport }) {
+function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport, onReset }) {
   const [newId, setNewId] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [importing, setImporting] = useState(false)
@@ -257,6 +260,11 @@ function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport }) {
 
   return (
     <div className="efb-admin">
+      <p className="efb-note">
+        This list is bundled into the app (554 rows from LIDO_Correct_email.xlsx) and stored in this browser
+        only — edits here don't sync to other devices/browsers. Use "Bulk import" below to load an updated
+        spreadsheet, or "Reset to bundled defaults" to discard local edits.
+      </p>
       <div className="efb-admin-import">
         <label className="efb-file-slot">
           <span>Bulk import from LIDO_Correct_email.xlsx (ID in col A, correct email in col B)</span>
@@ -269,6 +277,9 @@ function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport }) {
         </label>
         {importing && <span>Importing…</span>}
         {importMsg && <span className="efb-file-ok">{importMsg}</span>}
+        <button onClick={() => { if (confirm('Discard local edits and reset to the bundled 554-row list?')) onReset() }}>
+          Reset to bundled defaults
+        </button>
       </div>
 
       <div className="efb-admin-add">
