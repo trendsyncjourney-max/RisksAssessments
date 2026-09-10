@@ -51,12 +51,12 @@ export default function App() {
     window.__startVoiceCall?.(targetUser)
   }
 
-  if (session === undefined) return <div className="loading">Loading…</div>
-  if (!session) return <AuthPage />
-
   if (isEfbAuditRoute()) {
     return <EfbAuditPage onBack={() => { window.location.pathname = '/' }} />
   }
+
+  if (session === undefined) return <div className="loading">Loading…</div>
+  if (!session) return <AuthPage />
 
   return (
     <>
