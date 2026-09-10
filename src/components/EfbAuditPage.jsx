@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import {
   parseAimsBio, parseAimsBlkDuty, parseAimsDailyDuty,
-  parseFsi, parseDocunet, parseOpt, parseLido,
+  parseFsi, parseDocunet, parseOpt, parseLido, parseLidoCorrectEmail,
 } from '../efb_audit/parsers.js'
 import { buildAudit } from '../efb_audit/buildAudit.js'
 import { buildReportWorkbook, workbookToBlob, buildEmlZip } from '../efb_audit/report.js'
@@ -54,6 +54,17 @@ export default function EfbAuditPage({ onBack }) {
   async function deleteOverride(lido_id) {
     await supabase.from('lido_email_overrides').delete().eq('lido_id', lido_id)
     loadOverrides()
+  }
+
+  async function bulkImportOverrides(file) {
+    const buf = await file.arrayBuffer()
+    const parsed = parseLidoCorrectEmail(buf) // Map<lido_id, correct_email>
+    const records = [...parsed.entries()].map(([lido_id, correct_email]) => ({ lido_id, correct_email }))
+    if (records.length === 0) throw new Error('No ID / email rows found in that file')
+    const { error } = await supabase.from('lido_email_overrides').upsert(records, { onConflict: 'lido_id' })
+    if (error) throw error
+    await loadOverrides()
+    return records.length
   }
 
   function handleFile(key, file) {
@@ -207,18 +218,55 @@ export default function EfbAuditPage({ onBack }) {
         <div className="efb-admin-toggle" onClick={() => setShowAdmin((s) => !s)}>
           <h2>{showAdmin ? '▼' : '▶'} Admin — LIDO email overrides ({overrides.length})</h2>
         </div>
-        {showAdmin && <LidoOverridesAdmin overrides={overrides} onSave={saveOverride} onDelete={deleteOverride} />}
+        {showAdmin && (
+          <LidoOverridesAdmin
+            overrides={overrides}
+            onSave={saveOverride}
+            onDelete={deleteOverride}
+            onBulkImport={bulkImportOverrides}
+          />
+        )}
       </section>
     </div>
   )
 }
 
-function LidoOverridesAdmin({ overrides, onSave, onDelete }) {
+function LidoOverridesAdmin({ overrides, onSave, onDelete, onBulkImport }) {
   const [newId, setNewId] = useState('')
   const [newEmail, setNewEmail] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState('')
+
+  async function handleImportFile(file) {
+    if (!file) return
+    setImporting(true)
+    setImportMsg('')
+    try {
+      const count = await onBulkImport(file)
+      setImportMsg(`Imported/updated ${count} row(s).`)
+    } catch (e) {
+      setImportMsg(`Import failed: ${e.message || e}`)
+    } finally {
+      setImporting(false)
+    }
+  }
 
   return (
     <div className="efb-admin">
+      <div className="efb-admin-import">
+        <label className="efb-file-slot">
+          <span>Bulk import from LIDO_Correct_email.xlsx (ID in col A, correct email in col B)</span>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            disabled={importing}
+            onChange={(e) => handleImportFile(e.target.files[0] || null)}
+          />
+        </label>
+        {importing && <span>Importing…</span>}
+        {importMsg && <span className="efb-file-ok">{importMsg}</span>}
+      </div>
+
       <div className="efb-admin-add">
         <input placeholder="LIDO ID" value={newId} onChange={(e) => setNewId(e.target.value)} />
         <input placeholder="Correct DHL email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
