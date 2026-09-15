@@ -13,14 +13,17 @@ function fmtHours(minutes) {
   return `${h}:${String(m).padStart(2, '0')}`
 }
 
-// Columns A-P below, then Q=On Leave, R=Non-Compliant, S=Failed Systems, T=Remarks.
+function lidoCell(check) {
+  return check.found ? fmtDate(check.date) : 'No record found'
+}
+
 const HEADER = [
-  'NAME', 'Email', 'Flt hrs', 'Last Flt', 'Next Flt',
+  'NAME', 'Email', 'AIMS Match', 'Flt hrs', 'Last Flt', 'Next Flt',
   'OPT', 'OPT days', 'OPT fail',
   'FSI unread', 'FSI fail',
   'LIDO exp', 'LIDO days past', 'LIDO fail',
   'Docunet', 'Docunet days', 'Docunet fail',
-  'On Leave', 'Non-Compliant', 'Failed Systems', 'Remarks',
+  'No Flight Hours', 'On Leave', 'Non-Compliant', 'Failed Systems', 'Remarks',
 ]
 
 export function buildReportWorkbook(rows, { monthLabel } = {}) {
@@ -29,12 +32,12 @@ export function buildReportWorkbook(rows, { monthLabel } = {}) {
 
   for (const r of rows) {
     aoa.push([
-      r.name, r.email, fmtHours(r.blockMinutes), fmtDate(r.lastFlight), fmtDate(r.nextFlight),
+      r.name, r.email || '', r.aimsMatched ? 'Y' : 'N — check name spelling', fmtHours(r.blockMinutes), fmtDate(r.lastFlight), fmtDate(r.nextFlight),
       fmtDate(r.checks.opt.date), r.checks.opt.days ?? '', r.checks.opt.fail ? 'FAIL' : '',
       r.checks.fsi.unread ?? '', r.checks.fsi.fail ? 'FAIL' : '',
-      fmtDate(r.checks.lido.date), r.checks.lido.days ?? '', r.checks.lido.fail ? 'FAIL' : '',
+      lidoCell(r.checks.lido), r.checks.lido.days ?? '', r.checks.lido.fail ? 'FAIL' : '',
       fmtDate(r.checks.docunet.date), r.checks.docunet.days ?? '', r.checks.docunet.fail ? 'FAIL' : '',
-      r.onLeave ? 'Y' : '', r.nonCompliant ? 'Y' : 'N', r.failedSystems.join(', '), '',
+      r.noFlightHours ? 'Y' : '', r.onLeave ? 'Y' : '', r.nonCompliant ? 'Y' : 'N', r.failedSystems.join(', '), '',
     ])
   }
 
@@ -79,6 +82,9 @@ function draftBody(row, monthLabel) {
       const c = row.checks[key]
       if (key === 'fsi') {
         return `- ${s}: ${c.unread != null ? `${c.unread} unread` : 'no data'} (threshold: >=${RULES.fsi.unreadThreshold} unread)`
+      }
+      if (key === 'lido' && !c.found) {
+        return `- ${s}: no record found — please verify your LIDO account`
       }
       return `- ${s}: ${c.days != null ? `${c.days} day(s)` : 'no data'} (threshold: >${RULES[key].days} days)`
     }),

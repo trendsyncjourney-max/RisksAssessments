@@ -4,8 +4,10 @@ import { normalizeName } from './parseDoj.helpers.js'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
-// Parses the "latest crew list" PDF (DOJ) into a Set of normalized
-// "SURNAME FIRSTNAME" strings for matching against AIMS_bio names.
+// Parses the "latest crew list" PDF (DOJ) — the master crew roster —
+// into a Map<normalizedName, displayName>, e.g. "WELLS ALEX" -> "Wells Alex".
+// The normalized key is used to match against AIMS_bio names; the display
+// name is shown in the report for crew DOJ lists that AIMS_bio can't match.
 export async function parseDoj(data) {
   const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data
   // We already have the full file in memory, so disable pdf.js's
@@ -18,7 +20,7 @@ export async function parseDoj(data) {
     disableAutoFetch: true,
     disableRange: true,
   }).promise
-  const names = new Set()
+  const roster = new Map()
 
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p)
@@ -43,11 +45,12 @@ export async function parseDoj(data) {
       if (!/^\d+$/.test(cells[0])) continue
       if (!/^\d{2}\/\d{2}\/\d{4}$/.test(cells[3])) continue
 
-      names.add(normalizeName(cells[1], cells[2]))
+      const normalized = normalizeName(cells[1], cells[2])
+      if (!roster.has(normalized)) roster.set(normalized, `${cells[1]} ${cells[2]}`)
     }
   }
 
-  return names
+  return roster
 }
 
 export { normalizeAimsBioName } from './parseDoj.helpers.js'

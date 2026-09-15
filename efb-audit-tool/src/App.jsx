@@ -16,7 +16,7 @@ const FILE_SLOTS = [
   { key: 'opt', label: '6. OPT.csv', accept: '.csv' },
   { key: 'lido', label: '7. LIDO.xlsx', accept: '.xlsx,.xls' },
   { key: 'lidoCorrectEmail', label: '8. LIDO_Correct_email.xlsx', accept: '.xlsx,.xls,.csv' },
-  { key: 'doj', label: '9. DOJ.pdf (optional — active roster filter)', accept: '.pdf', optional: true },
+  { key: 'doj', label: '9. DOJ.pdf (optional — provide it to make DOJ the master roster; without it the roster falls back to AIMS_Bio)', accept: '.pdf', optional: true },
 ]
 
 function downloadBlob(blob, filename) {
@@ -152,10 +152,14 @@ export default function App() {
 
       {rows && (
         <section className="efb-card">
-          <h2>3. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant, {onLeaveCount} on leave</h2>
+          <h2>3. Results — {rows.length} crew audited (matches DOJ roster count when DOJ.pdf is provided), {nonCompliantCount} non-compliant, {onLeaveCount} on leave</h2>
           <p className="efb-note">
-            Crew with zero block hours this month are excluded entirely. Crew with no flight scheduled from today
-            onward are marked "On Leave" and never count as non-compliant.
+            Every crew member from DOJ.pdf appears here. "No Flight Hours" (zero block hours this month) and "On
+            Leave" (no flight scheduled from today onward) are informational flags — those crew stay in the list but
+            never count as non-compliant. A crew member DOJ lists but AIMS_Bio can't match by name shows "N" under
+            AIMS Match and has no data available. LIDO shows "No record found" when the crew member has no matching
+            row in LIDO.xlsx or LIDO_Correct_email.xlsx at all — go find their real LIDO account and add it to the
+            correct-email list.
           </p>
           <div className="efb-download-row">
             <button onClick={downloadReport}>Download report (.xlsx)</button>
@@ -165,22 +169,24 @@ export default function App() {
             <table className="efb-table">
               <thead>
                 <tr>
-                  <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
-                  <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>On Leave</th><th>Failed</th>
+                  <th>Name</th><th>Email</th><th>AIMS Match</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
+                  <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>No Flight Hours</th><th>On Leave</th><th>Failed</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.email} className={r.nonCompliant ? 'efb-row-fail' : r.onLeave ? 'efb-row-leave' : ''}>
+                  <tr key={r.email || r.name} className={r.nonCompliant ? 'efb-row-fail' : (r.onLeave || r.noFlightHours) ? 'efb-row-leave' : ''}>
                     <td>{r.name}</td>
-                    <td>{r.email}</td>
+                    <td>{r.email || ''}</td>
+                    <td>{r.aimsMatched ? 'Y' : 'N'}</td>
                     <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
                     <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
                     <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>
                     <td>{r.checks.opt.fail ? `FAIL (${r.checks.opt.days ?? '?'}d)` : 'OK'}</td>
                     <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.unread ?? '?'} unread)` : 'OK'}</td>
-                    <td>{r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK'}</td>
+                    <td>{r.checks.lido.found ? (r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK') : 'No record found'}</td>
                     <td>{r.checks.docunet.fail ? `FAIL (${r.checks.docunet.days ?? '?'}d)` : 'OK'}</td>
+                    <td>{r.noFlightHours ? 'Y' : ''}</td>
                     <td>{r.onLeave ? 'Y' : ''}</td>
                     <td>{r.failedSystems.join(', ')}</td>
                   </tr>

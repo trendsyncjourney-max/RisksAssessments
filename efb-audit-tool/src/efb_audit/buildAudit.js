@@ -1,5 +1,5 @@
 import { daysSince } from './utils.js'
-import { normalizeAimsBioName } from './parseDoj.helpers.js'
+import { normalizeAimsBioName, matchDojToAims } from './parseDoj.helpers.js'
 
 // Thresholds from efb_audit.xlsx column G ("rule (fail if)").
 // FSI fails on the unread (Non Compliance Count) value itself, not a date.
@@ -19,40 +19,73 @@ export const RULES = {
 //   opt: { byEmail },
 //   lido: { byId },
 //   lidoOverrides: Map<lidoId, email>,
-//   dojNames: Set<string> | null,
+//   dojNames: Map<normalizedName, displayName> | null,
 // }
 export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   const { aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames } = sources
 
-  const crew = new Map() // email -> record
+  const crew = new Map() // key -> record (key is email when known, else a synthetic DOJ key)
 
-  function getCrew(email, extra = {}) {
-    if (!crew.has(email)) {
-      crew.set(email, { email, name: null, id: null, ...extra })
+  function getCrew(key, extra = {}) {
+    if (!crew.has(key)) {
+      crew.set(key, { email: null, name: null, id: null, ...extra })
     }
-    return crew.get(email)
+    return crew.get(key)
   }
 
-  // Seed from AIMS_bio (the master roster with names + emails)
-  for (const [id, bio] of aimsBio.byId) {
-    const rec = getCrew(bio.email, { name: bio.name, id })
-    rec.name = bio.name
-    rec.id = id
+  const aimsEntries = Array.from(aimsBio.byId.values(), (bio) => [normalizeAimsBioName(bio.name), bio])
+
+  const hasDoj = dojNames && dojNames.size > 0
+
+  if (hasDoj) {
+    // DOJ is the master roster: every DOJ crew member gets a row, whether
+    // or not AIMS_bio can identify them (an unmatched name shows up with
+    // no email and a note, instead of silently disappearing).
+    for (const [normName, displayName] of dojNames) {
+      const bio = matchDojToAims(normName, aimsEntries)
+      if (bio) {
+        const rec = getCrew(bio.email, { name: bio.name, id: bio.id, email: bio.email })
+        rec.name = bio.name
+        rec.id = bio.id
+        rec.email = bio.email
+        rec.aimsMatched = true
+      } else {
+        const rec = getCrew(`doj:${normName}`, { name: displayName })
+        rec.aimsMatched = false
+      }
+    }
+  } else {
+    // No DOJ file provided — fall back to AIMS_bio as the roster.
+    for (const [id, bio] of aimsBio.byId) {
+      const rec = getCrew(bio.email, { name: bio.name, id, email: bio.email })
+      rec.name = bio.name
+      rec.id = id
+      rec.email = bio.email
+      rec.aimsMatched = true
+    }
   }
 
-  // Monthly block hours + zero-hour exclusion (grace rule)
+  // From here on, everything joins in by AIMS ID / email / username — crew
+  // records that came from DOJ but have no AIMS match simply won't be
+  // found by any of these lookups, which is expected: there's genuinely
+  // no data for them anywhere else.
+  function crewByEmail(email) {
+    return email ? crew.get(email) : undefined
+  }
+
+  // Monthly block hours (used for the "no flight hours" flag below)
   for (const [id, blk] of aimsBlk.byId) {
     const bio = aimsBio.byId.get(id)
-    if (!bio) continue
-    const rec = getCrew(bio.email)
+    const rec = bio && crewByEmail(bio.email)
+    if (!rec) continue
     rec.blockMinutes = blk.blockMinutes
   }
 
   // Last flight within the report month + next flight from today
   for (const [id, daily] of aimsDaily.byId) {
     const bio = aimsBio.byId.get(id)
-    if (!bio) continue
-    const rec = getCrew(bio.email)
+    const rec = bio && crewByEmail(bio.email)
+    if (!rec) continue
     rec.lastFlight = daily.lastFlight
     rec.nextFlight = daily.nextFlight
   }
@@ -60,24 +93,24 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   // Docunet: username -> email + last up to date
   const docunetByUsername = docunet.byUsername
   for (const [, d] of docunetByUsername) {
-    if (!d.email) continue
-    const rec = getCrew(d.email)
+    const rec = crewByEmail(d.email)
+    if (!rec) continue
     rec.docunetLastUpdate = d.lastUpToDate
   }
 
   // FSI: username -> last up to date, resolve email via Docunet username
   for (const [username, f] of fsi.byUsername) {
     const d = docunetByUsername.get(username)
-    const email = d && d.email
-    if (!email) continue
-    const rec = getCrew(email)
+    const rec = d && crewByEmail(d.email)
+    if (!rec) continue
     rec.fsiLastUpdate = f.lastUpToDate
     rec.fsiUnread = f.unread === Infinity ? null : f.unread
   }
 
   // OPT: keyed directly by email
   for (const [email, o] of opt.byEmail) {
-    const rec = getCrew(email)
+    const rec = crewByEmail(email)
+    if (!rec) continue
     rec.optLastUpdate = o.lastUpdated
   }
 
@@ -85,30 +118,26 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   for (const [lidoId, l] of lido.byId) {
     const overrideEmail = lidoOverrides.get(lidoId)
     const email = overrideEmail || l.email
-    if (!email) continue
-    const rec = getCrew(email)
+    const rec = crewByEmail(email)
+    if (!rec) continue
+    rec.lidoFound = true
     rec.lidoExpiration = l.expiration
     rec.lidoId = lidoId
     rec.lidoEmailWasOverridden = Boolean(overrideEmail)
   }
 
-  // Active-roster filter via DOJ (optional — if unavailable/unmatched, crew is kept)
-  if (dojNames && dojNames.size > 0) {
-    for (const rec of crew.values()) {
-      rec.activeOnDoj = dojNames.has(normalizeAimsBioName(rec.name))
-    }
-  }
-
   const rows = []
   for (const rec of crew.values()) {
-    // Grace: crew with zero block hours this month are excluded entirely.
-    const flewLastMonth = (rec.blockMinutes || 0) > 0
-    if (!flewLastMonth) continue
+    // No flight hours this month: kept in the report, flagged, and
+    // exempt from non-compliance — not dropped, so the report's total
+    // can match the DOJ roster count.
+    const noFlightHours = (rec.blockMinutes || 0) === 0
 
-    // On leave: no flight scheduled from today onward. They stay in the
-    // list (flagged), but never count as non-compliant even if a check
-    // below would otherwise fail.
+    // On leave: no flight scheduled from today onward. Also kept and
+    // flagged, also exempt from non-compliance.
     const onLeave = !rec.nextFlight
+
+    const exempt = noFlightHours || onLeave
 
     const checks = {}
 
@@ -126,15 +155,18 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
       const fail = days == null || days > RULES[key].days
       checks[key] = { date, days, fail }
     }
-    // LIDO: fail if expiration already passed by more than the threshold
+    // LIDO: no matching record at all is called out separately from "record
+    // found but expired" — the former means go find their real LIDO
+    // account and add it to LIDO_Correct_email, not just "overdue".
     {
-      const date = rec.lidoExpiration || null
+      const found = Boolean(rec.lidoFound)
+      const date = found ? rec.lidoExpiration || null : null
       const days = date ? daysSince(date, referenceDate) : null // positive = days past expiration
-      const fail = days == null || days > RULES.lido.days
-      checks.lido = { date, days, fail }
+      const fail = !found || days == null || days > RULES.lido.days
+      checks.lido = { date, days, fail, found }
     }
 
-    const failedSystems = onLeave
+    const failedSystems = exempt
       ? []
       : Object.entries(checks).filter(([, c]) => c.fail).map(([key]) => RULES[key].label)
 
@@ -142,9 +174,11 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
       name: rec.name,
       email: rec.email,
       id: rec.id,
+      aimsMatched: rec.aimsMatched !== false,
       blockMinutes: rec.blockMinutes || 0,
       lastFlight: rec.lastFlight || null,
       nextFlight: rec.nextFlight || null,
+      noFlightHours,
       onLeave,
       checks,
       nonCompliant: failedSystems.length > 0,
