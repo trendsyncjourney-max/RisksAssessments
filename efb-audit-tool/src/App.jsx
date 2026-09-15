@@ -1,0 +1,195 @@
+import { useState } from 'react'
+import {
+  parseAimsBio, parseAimsBlkDuty, parseAimsDailyDuty,
+  parseFsi, parseDocunet, parseOpt, parseLido, parseLidoCorrectEmail,
+} from './efb_audit/parsers.js'
+import { buildAudit } from './efb_audit/buildAudit.js'
+import { buildReportWorkbook, workbookToBlob, buildEmlZip } from './efb_audit/report.js'
+import { periodToLabel, periodToReferenceDate, periodToRange, currentPeriod } from './efb_audit/utils.js'
+
+const FILE_SLOTS = [
+  { key: 'aimsBio', label: '1. AIMS_Bio.xlsx', accept: '.xlsx,.xls,.csv' },
+  { key: 'aimsBlk', label: '2. AIMS_blk_duty.xlsx', accept: '.xlsx,.xls,.csv' },
+  { key: 'aimsDaily', label: '3. AIMS_daily_duty.xlsx', accept: '.xlsx,.xls,.csv' },
+  { key: 'fsi', label: '4. FSI.csv', accept: '.csv' },
+  { key: 'docunet', label: '5. docunet.csv', accept: '.csv' },
+  { key: 'opt', label: '6. OPT.csv', accept: '.csv' },
+  { key: 'lido', label: '7. LIDO.xlsx', accept: '.xlsx,.xls' },
+  { key: 'lidoCorrectEmail', label: '8. LIDO_Correct_email.xlsx', accept: '.xlsx,.xls,.csv' },
+  { key: 'doj', label: '9. DOJ.pdf (optional — active roster filter)', accept: '.pdf', optional: true },
+]
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export default function App() {
+  const [files, setFiles] = useState({})
+  const [period, setPeriod] = useState(currentPeriod)
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState('')
+  const [rows, setRows] = useState(null)
+
+  function handleFile(key, file) {
+    setFiles((f) => ({ ...f, [key]: file }))
+  }
+
+  async function runAudit() {
+    setError('')
+    setRunning(true)
+    setRows(null)
+    try {
+      const required = FILE_SLOTS.filter((s) => !s.optional)
+      for (const slot of required) {
+        if (!files[slot.key]) throw new Error(`Missing file: ${slot.label}`)
+      }
+
+      const [aimsBioBuf, aimsBlkBuf, aimsDailyBuf, fsiText, docunetText, optText, lidoBuf, lidoCorrectEmailBuf] = await Promise.all([
+        files.aimsBio.arrayBuffer(),
+        files.aimsBlk.arrayBuffer(),
+        files.aimsDaily.arrayBuffer(),
+        files.fsi.text(),
+        files.docunet.text(),
+        files.opt.text(),
+        files.lido.arrayBuffer(),
+        files.lidoCorrectEmail.arrayBuffer(),
+      ])
+
+      const { start: reportMonthStart, end: reportMonthEnd } = periodToRange(period)
+
+      const aimsBio = parseAimsBio(aimsBioBuf)
+      const aimsBlk = parseAimsBlkDuty(aimsBlkBuf)
+      const aimsDaily = parseAimsDailyDuty(aimsDailyBuf, { reportMonthStart, reportMonthEnd })
+      const fsi = parseFsi(fsiText)
+      const docunet = parseDocunet(docunetText)
+      const opt = parseOpt(optText)
+      const lido = parseLido(lidoBuf)
+      const lidoOverrides = parseLidoCorrectEmail(lidoCorrectEmailBuf)
+
+      let dojNames = null
+      if (files.doj) {
+        try {
+          const { parseDoj } = await import('./efb_audit/parseDoj.js')
+          dojNames = await parseDoj(await files.doj.arrayBuffer())
+        } catch (e) {
+          console.error('DOJ roster PDF failed to parse — continuing without the active-roster filter', e)
+          setError(`Note: DOJ.pdf could not be read (${e.message || e}) — audit ran without the active-roster filter.`)
+        }
+      }
+
+      const referenceDate = periodToReferenceDate(period)
+      const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames }, { referenceDate })
+      setRows(auditRows)
+    } catch (e) {
+      setError(e.message || String(e))
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const monthLabel = periodToLabel(period)
+
+  function downloadReport() {
+    const wb = buildReportWorkbook(rows, { monthLabel })
+    downloadBlob(workbookToBlob(wb), `EFB_Audit_${monthLabel}.xlsx`)
+  }
+
+  async function downloadEmls() {
+    const zip = await buildEmlZip(rows, { monthLabel })
+    downloadBlob(zip, `EFB_Audit_${monthLabel}_emails.zip`)
+  }
+
+  const nonCompliantCount = rows ? rows.filter((r) => r.nonCompliant).length : 0
+  const onLeaveCount = rows ? rows.filter((r) => r.onLeave).length : 0
+
+  return (
+    <div className="efb-audit-page">
+      <header className="efb-header">
+        <h1>EFB Monthly Compliance Audit</h1>
+      </header>
+      <p className="efb-note">
+        Runs entirely in this browser — nothing is uploaded to any server. Pick your 9 files for the month, run
+        the audit, and download the report / email drafts. Nothing is saved when you close this page; re-upload
+        fresh files each time you run it.
+      </p>
+
+      <section className="efb-card">
+        <h2>1. Report month</h2>
+        <div className="efb-run-row">
+          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+          <span className="efb-month-label">Reporting as of {monthLabel}</span>
+        </div>
+      </section>
+
+      <section className="efb-card">
+        <h2>2. Upload this month's files</h2>
+        <div className="efb-file-grid">
+          {FILE_SLOTS.map((slot) => (
+            <label key={slot.key} className="efb-file-slot">
+              <span>{slot.label}{slot.optional ? '' : ' *'}</span>
+              <input
+                type="file"
+                accept={slot.accept}
+                onChange={(e) => handleFile(slot.key, e.target.files[0] || null)}
+              />
+              {files[slot.key] && <span className="efb-file-ok">✓ {files[slot.key].name}</span>}
+            </label>
+          ))}
+        </div>
+
+        <div className="efb-run-row">
+          <button className="efb-primary" disabled={running} onClick={runAudit}>
+            {running ? 'Running…' : 'Run Audit'}
+          </button>
+        </div>
+        {error && <div className="efb-error">{error}</div>}
+      </section>
+
+      {rows && (
+        <section className="efb-card">
+          <h2>3. Results — {rows.length} crew audited, {nonCompliantCount} non-compliant, {onLeaveCount} on leave</h2>
+          <p className="efb-note">
+            Crew with zero block hours this month are excluded entirely. Crew with no flight scheduled from today
+            onward are marked "On Leave" and never count as non-compliant.
+          </p>
+          <div className="efb-download-row">
+            <button onClick={downloadReport}>Download report (.xlsx)</button>
+            <button onClick={downloadEmls} disabled={nonCompliantCount === 0}>Download .eml drafts (.zip)</button>
+          </div>
+          <div className="efb-table-wrap">
+            <table className="efb-table">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
+                  <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>On Leave</th><th>Failed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.email} className={r.nonCompliant ? 'efb-row-fail' : r.onLeave ? 'efb-row-leave' : ''}>
+                    <td>{r.name}</td>
+                    <td>{r.email}</td>
+                    <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
+                    <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
+                    <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>
+                    <td>{r.checks.opt.fail ? `FAIL (${r.checks.opt.days ?? '?'}d)` : 'OK'}</td>
+                    <td>{r.checks.fsi.fail ? `FAIL (${r.checks.fsi.unread ?? '?'} unread)` : 'OK'}</td>
+                    <td>{r.checks.lido.fail ? `FAIL (${r.checks.lido.days ?? '?'}d)` : 'OK'}</td>
+                    <td>{r.checks.docunet.fail ? `FAIL (${r.checks.docunet.days ?? '?'}d)` : 'OK'}</td>
+                    <td>{r.onLeave ? 'Y' : ''}</td>
+                    <td>{r.failedSystems.join(', ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
