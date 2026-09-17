@@ -28,6 +28,9 @@ function colIndex(letter) {
 }
 
 // ---------- AIMS_Bio: ID -> { name, email } ----------
+// This is the master crew roster. Records whose email isn't a @dhl.com
+// address (personal emails sometimes appear in this column) are skipped
+// entirely — they never enter the roster.
 export function parseAimsBio(data) {
   const wb = readWorkbook(data)
   const rows = sheetRows(wb.Sheets[wb.SheetNames[0]])
@@ -39,7 +42,7 @@ export function parseAimsBio(data) {
     const id = row[colIndex('A')]
     const name = row[colIndex('C')]
     const email = normEmail(row[colIndex('K')])
-    if (id == null || !email) continue
+    if (id == null || !email || !email.endsWith('@dhl.com')) continue
     const rec = { id: String(id).trim(), name: name ? String(name).trim() : null, email }
     byId.set(rec.id, rec)
     byEmail.set(email, rec)

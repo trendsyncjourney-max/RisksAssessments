@@ -17,7 +17,6 @@ const FILE_SLOTS = [
   { key: 'docunet', label: 'docunet.csv', accept: '.csv' },
   { key: 'opt', label: 'OPT.csv', accept: '.csv' },
   { key: 'lido', label: 'LIDO.xlsx', accept: '.xlsx,.xls' },
-  { key: 'doj', label: 'DOJ.pdf (optional — provide it to make DOJ the master roster; without it the roster falls back to AIMS_Bio)', accept: '.pdf', optional: true },
 ]
 
 function downloadBlob(blob, filename) {
@@ -103,21 +102,10 @@ export default function EfbAuditPage() {
       const opt = parseOpt(optText)
       const lido = parseLido(lidoBuf)
 
-      let dojNames = null
-      if (files.doj) {
-        try {
-          const { parseDoj } = await import('../efb_audit/parseDoj.js')
-          dojNames = await parseDoj(await files.doj.arrayBuffer())
-        } catch (e) {
-          console.error('DOJ roster PDF failed to parse — continuing without the active-roster filter', e)
-          setError(`Note: DOJ.pdf could not be read (${e.message || e}) — audit ran without the active-roster filter.`)
-        }
-      }
-
       const lidoOverrides = overridesStore.overridesAsMap()
       const referenceDate = periodToReferenceDate(period)
 
-      const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames }, { referenceDate })
+      const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides }, { referenceDate })
       setRows(auditRows)
     } catch (e) {
       setError(e.message || String(e))
@@ -194,14 +182,13 @@ export default function EfbAuditPage() {
 
           {rows && (
             <section className="efb-card">
-              <h2>3. Results — {rows.length} crew audited (matches DOJ roster count when DOJ.pdf is provided), {nonCompliantCount} non-compliant</h2>
+              <h2>3. Results — {rows.length} crew audited (AIMS_Bio roster, @dhl.com emails only), {nonCompliantCount} non-compliant</h2>
               <p className="efb-note">
-                Every crew member from DOJ.pdf appears here. "No Flight Hours" (zero block hours this month) and "On
-                Leave" (no flight scheduled from today onward) are informational flags — those crew stay in the list
-                but never count as non-compliant. A crew member DOJ lists but AIMS_Bio can't match by name shows "N"
-                under AIMS Match and has no data available. LIDO shows "No record found" when the crew member has no
-                matching row in LIDO.xlsx or LIDO_Correct_email.xlsx at all — go find their real LIDO account and add
-                it to the correct-email list.
+                Every AIMS_Bio crew member with a @dhl.com email appears here. "No Flight Hours" (zero block hours
+                this month) and "On Leave" (no flight scheduled from today onward) are informational flags — those
+                crew stay in the list but never count as non-compliant. LIDO shows "No record found" when the crew
+                member has no matching row in LIDO.xlsx or LIDO_Correct_email.xlsx at all — go find their real LIDO
+                account and add it to the correct-email list.
               </p>
               <div className="efb-download-row">
                 <button onClick={downloadReport}>Download report (.xlsx)</button>
@@ -211,7 +198,7 @@ export default function EfbAuditPage() {
                 <table className="efb-table">
                   <thead>
                     <tr>
-                      <th>Name</th><th>Email</th><th>AIMS Match</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
+                      <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
                       <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>No Flight Hours</th><th>On Leave</th><th>Failed</th>
                     </tr>
                   </thead>
@@ -220,7 +207,6 @@ export default function EfbAuditPage() {
                       <tr key={r.email || r.name} className={r.nonCompliant ? 'efb-row-fail' : (r.onLeave || r.noFlightHours) ? 'efb-row-leave' : ''}>
                         <td>{r.name}</td>
                         <td>{r.email || ''}</td>
-                        <td>{r.aimsMatched ? 'Y' : 'N'}</td>
                         <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
                         <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
                         <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>

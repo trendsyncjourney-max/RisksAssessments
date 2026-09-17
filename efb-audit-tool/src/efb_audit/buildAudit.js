@@ -1,5 +1,4 @@
 import { daysSince } from './utils.js'
-import { normalizeAimsBioName, matchDojToAims } from './parseDoj.helpers.js'
 
 // Thresholds from efb_audit.xlsx column G ("rule (fail if)").
 // FSI fails on the unread (Non Compliance Count) value itself, not a date.
@@ -19,64 +18,24 @@ export const RULES = {
 //   opt: { byEmail },
 //   lido: { byId },
 //   lidoOverrides: Map<lidoId, email>,
-//   dojNames: Map<normalizedName, displayName> | null,
 // }
 export function buildAudit(sources, { referenceDate = new Date() } = {}) {
-  const { aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames } = sources
+  const { aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides } = sources
 
-  const crew = new Map() // key -> record (key is email when known, else a synthetic DOJ key)
+  const crew = new Map() // email -> record
 
-  function getCrew(key, extra = {}) {
-    if (!crew.has(key)) {
-      crew.set(key, { email: null, name: null, id: null, ...extra })
-    }
-    return crew.get(key)
-  }
-
-  const aimsEntries = Array.from(aimsBio.byId.values(), (bio) => [normalizeAimsBioName(bio.name), bio])
-
-  const hasDoj = dojNames && dojNames.size > 0
-
-  if (hasDoj) {
-    // DOJ is the master roster: every DOJ crew member gets a row, whether
-    // or not AIMS_bio can identify them (an unmatched name shows up with
-    // no email and a note, instead of silently disappearing).
-    for (const [normName, displayName] of dojNames) {
-      const bio = matchDojToAims(normName, aimsEntries)
-      if (bio) {
-        const rec = getCrew(bio.email, { name: bio.name, id: bio.id, email: bio.email })
-        rec.name = bio.name
-        rec.id = bio.id
-        rec.email = bio.email
-        rec.aimsMatched = true
-      } else {
-        const rec = getCrew(`doj:${normName}`, { name: displayName })
-        rec.aimsMatched = false
-      }
-    }
-  } else {
-    // No DOJ file provided — fall back to AIMS_bio as the roster.
-    for (const [id, bio] of aimsBio.byId) {
-      const rec = getCrew(bio.email, { name: bio.name, id, email: bio.email })
-      rec.name = bio.name
-      rec.id = id
-      rec.email = bio.email
-      rec.aimsMatched = true
-    }
-  }
-
-  // From here on, everything joins in by AIMS ID / email / username — crew
-  // records that came from DOJ but have no AIMS match simply won't be
-  // found by any of these lookups, which is expected: there's genuinely
-  // no data for them anywhere else.
-  function crewByEmail(email) {
-    return email ? crew.get(email) : undefined
+  // AIMS_Bio is the master roster — the only place a crew record is
+  // created. Every other source below only updates an existing record
+  // (via crew.get, never crew.set for a new one), so a person who has an
+  // OPT/FSI/Docunet/LIDO record but isn't in AIMS_Bio never appears.
+  for (const [id, bio] of aimsBio.byId) {
+    crew.set(bio.email, { email: bio.email, name: bio.name, id })
   }
 
   // Monthly block hours (used for the "no flight hours" flag below)
   for (const [id, blk] of aimsBlk.byId) {
     const bio = aimsBio.byId.get(id)
-    const rec = bio && crewByEmail(bio.email)
+    const rec = bio && crew.get(bio.email)
     if (!rec) continue
     rec.blockMinutes = blk.blockMinutes
   }
@@ -84,7 +43,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   // Last flight within the report month + next flight from today
   for (const [id, daily] of aimsDaily.byId) {
     const bio = aimsBio.byId.get(id)
-    const rec = bio && crewByEmail(bio.email)
+    const rec = bio && crew.get(bio.email)
     if (!rec) continue
     rec.lastFlight = daily.lastFlight
     rec.nextFlight = daily.nextFlight
@@ -93,7 +52,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   // Docunet: username -> email + last up to date
   const docunetByUsername = docunet.byUsername
   for (const [, d] of docunetByUsername) {
-    const rec = crewByEmail(d.email)
+    const rec = d.email && crew.get(d.email)
     if (!rec) continue
     rec.docunetLastUpdate = d.lastUpToDate
   }
@@ -101,7 +60,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   // FSI: username -> last up to date, resolve email via Docunet username
   for (const [username, f] of fsi.byUsername) {
     const d = docunetByUsername.get(username)
-    const rec = d && crewByEmail(d.email)
+    const rec = d && d.email && crew.get(d.email)
     if (!rec) continue
     rec.fsiLastUpdate = f.lastUpToDate
     rec.fsiUnread = f.unread === Infinity ? null : f.unread
@@ -109,7 +68,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
 
   // OPT: keyed directly by email
   for (const [email, o] of opt.byEmail) {
-    const rec = crewByEmail(email)
+    const rec = crew.get(email)
     if (!rec) continue
     rec.optLastUpdate = o.lastUpdated
   }
@@ -118,7 +77,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   for (const [lidoId, l] of lido.byId) {
     const overrideEmail = lidoOverrides.get(lidoId)
     const email = overrideEmail || l.email
-    const rec = crewByEmail(email)
+    const rec = email && crew.get(email)
     if (!rec) continue
     rec.lidoFound = true
     rec.lidoExpiration = l.expiration
@@ -129,8 +88,7 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
   const rows = []
   for (const rec of crew.values()) {
     // No flight hours this month: kept in the report, flagged, and
-    // exempt from non-compliance — not dropped, so the report's total
-    // can match the DOJ roster count.
+    // exempt from non-compliance — not dropped.
     const noFlightHours = (rec.blockMinutes || 0) === 0
 
     // On leave: no flight scheduled from today onward. Also kept and
@@ -174,7 +132,6 @@ export function buildAudit(sources, { referenceDate = new Date() } = {}) {
       name: rec.name,
       email: rec.email,
       id: rec.id,
-      aimsMatched: rec.aimsMatched !== false,
       blockMinutes: rec.blockMinutes || 0,
       lastFlight: rec.lastFlight || null,
       nextFlight: rec.nextFlight || null,

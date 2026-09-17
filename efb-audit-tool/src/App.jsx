@@ -16,7 +16,6 @@ const FILE_SLOTS = [
   { key: 'opt', label: '6. OPT.csv', accept: '.csv' },
   { key: 'lido', label: '7. LIDO.xlsx', accept: '.xlsx,.xls' },
   { key: 'lidoCorrectEmail', label: '8. LIDO_Correct_email.xlsx', accept: '.xlsx,.xls,.csv' },
-  { key: 'doj', label: '9. DOJ.pdf (optional — provide it to make DOJ the master roster; without it the roster falls back to AIMS_Bio)', accept: '.pdf', optional: true },
 ]
 
 function downloadBlob(blob, filename) {
@@ -71,19 +70,8 @@ export default function App() {
       const lido = parseLido(lidoBuf)
       const lidoOverrides = parseLidoCorrectEmail(lidoCorrectEmailBuf)
 
-      let dojNames = null
-      if (files.doj) {
-        try {
-          const { parseDoj } = await import('./efb_audit/parseDoj.js')
-          dojNames = await parseDoj(await files.doj.arrayBuffer())
-        } catch (e) {
-          console.error('DOJ roster PDF failed to parse — continuing without the active-roster filter', e)
-          setError(`Note: DOJ.pdf could not be read (${e.message || e}) — audit ran without the active-roster filter.`)
-        }
-      }
-
       const referenceDate = periodToReferenceDate(period)
-      const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides, dojNames }, { referenceDate })
+      const auditRows = buildAudit({ aimsBio, aimsBlk, aimsDaily, fsi, docunet, opt, lido, lidoOverrides }, { referenceDate })
       setRows(auditRows)
     } catch (e) {
       setError(e.message || String(e))
@@ -113,7 +101,7 @@ export default function App() {
         <h1>EFB Monthly Compliance Audit</h1>
       </header>
       <p className="efb-note">
-        Runs entirely in this browser — nothing is uploaded to any server. Pick your 9 files for the month, run
+        Runs entirely in this browser — nothing is uploaded to any server. Pick your 8 files for the month, run
         the audit, and download the report / email drafts. Nothing is saved when you close this page; re-upload
         fresh files each time you run it.
       </p>
@@ -152,14 +140,13 @@ export default function App() {
 
       {rows && (
         <section className="efb-card">
-          <h2>3. Results — {rows.length} crew audited (matches DOJ roster count when DOJ.pdf is provided), {nonCompliantCount} non-compliant, {onLeaveCount} on leave</h2>
+          <h2>3. Results — {rows.length} crew audited (AIMS_Bio roster, @dhl.com emails only), {nonCompliantCount} non-compliant, {onLeaveCount} on leave</h2>
           <p className="efb-note">
-            Every crew member from DOJ.pdf appears here. "No Flight Hours" (zero block hours this month) and "On
-            Leave" (no flight scheduled from today onward) are informational flags — those crew stay in the list but
-            never count as non-compliant. A crew member DOJ lists but AIMS_Bio can't match by name shows "N" under
-            AIMS Match and has no data available. LIDO shows "No record found" when the crew member has no matching
-            row in LIDO.xlsx or LIDO_Correct_email.xlsx at all — go find their real LIDO account and add it to the
-            correct-email list.
+            Every AIMS_Bio crew member with a @dhl.com email appears here. "No Flight Hours" (zero block hours this
+            month) and "On Leave" (no flight scheduled from today onward) are informational flags — those crew stay
+            in the list but never count as non-compliant. LIDO shows "No record found" when the crew member has no
+            matching row in LIDO.xlsx or LIDO_Correct_email.xlsx at all — go find their real LIDO account and add it
+            to the correct-email list.
           </p>
           <div className="efb-download-row">
             <button onClick={downloadReport}>Download report (.xlsx)</button>
@@ -169,7 +156,7 @@ export default function App() {
             <table className="efb-table">
               <thead>
                 <tr>
-                  <th>Name</th><th>Email</th><th>AIMS Match</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
+                  <th>Name</th><th>Email</th><th>Flt hrs</th><th>Last Flt</th><th>Next Flt</th>
                   <th>OPT</th><th>FSI</th><th>LIDO</th><th>Docunet</th><th>No Flight Hours</th><th>On Leave</th><th>Failed</th>
                 </tr>
               </thead>
@@ -178,7 +165,6 @@ export default function App() {
                   <tr key={r.email || r.name} className={r.nonCompliant ? 'efb-row-fail' : (r.onLeave || r.noFlightHours) ? 'efb-row-leave' : ''}>
                     <td>{r.name}</td>
                     <td>{r.email || ''}</td>
-                    <td>{r.aimsMatched ? 'Y' : 'N'}</td>
                     <td>{Math.floor(r.blockMinutes / 60)}:{String(r.blockMinutes % 60).padStart(2, '0')}</td>
                     <td>{r.lastFlight ? r.lastFlight.toISOString().slice(0, 10) : ''}</td>
                     <td>{r.nextFlight ? r.nextFlight.toISOString().slice(0, 10) : ''}</td>

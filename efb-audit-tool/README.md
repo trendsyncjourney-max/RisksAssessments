@@ -2,7 +2,7 @@
 
 A single self-contained `dist/index.html` file. No server, no login, no
 network calls — everything runs in the browser that opens it. Nothing is
-saved between runs; upload all 9 files fresh each month.
+saved between runs; upload all 8 files fresh each month.
 
 ## Building
 
@@ -17,7 +17,8 @@ modern browser (Chrome, Edge, Firefox, Safari) works.
 
 ## Files it expects, in order
 
-1. `AIMS_Bio.xlsx`
+1. `AIMS_Bio.xlsx` — the master crew roster (ID col A, Name col C, Email col K).
+   Records whose email isn't `@dhl.com` are skipped entirely.
 2. `AIMS_blk_duty.xlsx`
 3. `AIMS_daily_duty.xlsx`
 4. `FSI.csv`
@@ -25,7 +26,6 @@ modern browser (Chrome, Edge, Firefox, Safari) works.
 6. `OPT.csv`
 7. `LIDO.xlsx`
 8. `LIDO_Correct_email.xlsx` (the admin ID → correct-email overrides list)
-9. `DOJ.pdf` (optional — active-roster filter)
 
 ## Source of truth
 

@@ -18,7 +18,7 @@ function lidoCell(check) {
 }
 
 const HEADER = [
-  'NAME', 'Email', 'AIMS Match', 'Flt hrs', 'Last Flt', 'Next Flt',
+  'NAME', 'Email', 'Flt hrs', 'Last Flt', 'Next Flt',
   'OPT', 'OPT days', 'OPT fail',
   'FSI unread', 'FSI fail',
   'LIDO exp', 'LIDO days past', 'LIDO fail',
@@ -32,7 +32,7 @@ export function buildReportWorkbook(rows, { monthLabel } = {}) {
 
   for (const r of rows) {
     aoa.push([
-      r.name, r.email || '', r.aimsMatched ? 'Y' : 'N — check name spelling', fmtHours(r.blockMinutes), fmtDate(r.lastFlight), fmtDate(r.nextFlight),
+      r.name, r.email || '', fmtHours(r.blockMinutes), fmtDate(r.lastFlight), fmtDate(r.nextFlight),
       fmtDate(r.checks.opt.date), r.checks.opt.days ?? '', r.checks.opt.fail ? 'FAIL' : '',
       r.checks.fsi.unread ?? '', r.checks.fsi.fail ? 'FAIL' : '',
       lidoCell(r.checks.lido), r.checks.lido.days ?? '', r.checks.lido.fail ? 'FAIL' : '',
